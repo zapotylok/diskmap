@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <!-- 4 units = 1 px at 16 px: edges sit on the pixel grid down to the favicon size -->
+  <rect width="64" height="64" rx="14" fill="#263247"/>
+  <rect x="8" y="24" width="8" height="16" rx="1" fill="#c7ccd4"/>
+  <rect x="10" y="26" width="4" height="4" fill="#263247"/>
+  <rect x="10" y="34" width="4" height="4" fill="#263247"/>
+  <rect x="16" y="16" width="16" height="32" fill="#5b8def"/>
+  <rect x="36" y="16" width="8" height="32" fill="#d9822b"/>
+  <path d="M48 16h4a4 4 0 0 1 4 4v24a4 4 0 0 1-4 4h-4z" fill="#c2559b"/>
+</svg>
