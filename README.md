@@ -81,7 +81,7 @@ The screenshots are of a disk image, the way diskmap is tested: no real drive wa
 ## Install
 
 diskmap is installed with [Homebrew](https://brew.sh) and built from source on your Mac.
-It needs Apple silicon and macOS 15 or later. It is tested on macOS 26; on another version
+It needs Apple silicon and macOS 15 or later. It is tested on macOS 15 and 26; on another version
 every plan says so first, because `diskutil` there may do what the plan does not predict.
 
 ```sh
@@ -160,7 +160,7 @@ diskmap is young and in active development. Each release is a tag of this reposi
 the source Homebrew builds from; the work in between happens elsewhere, so the history here
 is one commit per release.
 
-It is developed and tested on macOS 26 on Apple silicon; it runs on macOS 15 and later.
+It is developed on macOS 26 and tested on macOS 15 and 26, on Apple silicon; it runs on macOS 15 and later.
 
 ## Versions
 
