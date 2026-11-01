@@ -33,8 +33,9 @@ copy it and run it by hand. The commands are the feature, not an implementation 
   `diskmap doctor` tells apart "a format can be created" from "a volume of it then mounts".
 - **Back up and restore** the partition map before every write; a journal records each run.
 - **Mount and unmount** partitions.
-- Works from the command line (`diskmap show | plan | apply | doctor | …`) and from a local
-  web page (`diskmap ui`) that draws the map and opens the plan in Terminal.
+- Works from the command line (`diskmap show | plan | apply | doctor | …`) and from a window
+  — `diskmap.app`, or the same page in a browser with `diskmap ui` — that draws the map,
+  edits the layout and opens the plan in Terminal.
 
 ## How it keeps your disks safe
 
@@ -50,11 +51,59 @@ copy it and run it by hand. The commands are the feature, not an implementation 
   macOS — `diskutil` above all — or by the formatter a file system needs.
 - **No network.** diskmap sends nothing anywhere. `diskmap ui` listens on `127.0.0.1` only.
 
+## Install
+
+diskmap is installed with [Homebrew](https://brew.sh) and built from source on your Mac.
+It needs macOS 26 on Apple silicon.
+
+```sh
+brew install zapotylok/diskmap/diskmap
+```
+
+That gives you the `diskmap` command and the window, `diskmap.app`. To find the window in
+Launchpad and Spotlight, copy it to Applications:
+
+```sh
+cp -R "$(brew --prefix diskmap)/diskmap.app" /Applications/
+```
+
+The copy runs the `diskmap` Homebrew installed, so after `brew upgrade diskmap` it runs the
+new version. Copy it again when you want the newest window itself.
+
+**NTFS and ext4** need a formatter diskmap does not install: `mkntfs` from
+[ntfs-3g](https://github.com/tuxera/ntfs-3g) or Paragon's Microsoft NTFS for Mac; `mke2fs`
+from `brew install e2fsprogs` or Paragon's extFS for Mac. `diskmap doctor` shows which
+formats you can create here and which of them macOS can then mount.
+
+**Why Homebrew and not a download.** A downloaded app has to be signed with an Apple
+Developer ID and notarized, or macOS refuses to open it; that will come later. Homebrew
+builds diskmap on your Mac from this repository's source, and macOS runs what was built on
+it without asking.
+
+**One thing to know about `sudo`.** Writing to a disk is `sudo diskmap apply …`, which runs
+diskmap's code from Homebrew's folder as root. That folder is writable by your user, as it is
+for every Homebrew tool you run with `sudo`.
+
+To remove it: `brew uninstall diskmap`, and delete the copy of `diskmap.app` if you made one.
+
+## Getting started
+
+```sh
+diskmap show            # every disk and partition, as a map
+diskmap doctor          # which formats can be created and mounted here
+open -a diskmap         # the window (after copying it to Applications)
+```
+
+In the window, pick an external drive, lay out its partitions and press **Show plan**. Nothing
+is written until you press **Apply…**: it opens Terminal with `sudo diskmap apply`, which
+shows the plan once more and asks you to type the disk's name — and, when a volume is
+destroyed, its label.
+
 ## Status
 
-diskmap is in active development and has not had a public release yet. Releases will
-appear on the [Releases](../../releases) page of this repository; the source code will be
-published here later.
+diskmap is young and in active development. Each release is a tag of this repository and
+the source Homebrew builds from; the work in between happens elsewhere, so the history here
+is one commit per release.
 
 It is developed and tested on macOS 26 on Apple silicon.
 
