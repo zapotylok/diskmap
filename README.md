@@ -9,6 +9,13 @@
   Every change is a <code>diskutil</code> command you see before it runs.
 </p>
 
+<p align="center">
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="assets/screenshots/map-dark.png">
+  <img src="assets/screenshots/map-light.png" alt="The diskmap window: a drive with APFS, NTFS, ext4 and ExFAT partitions and free space at the end">
+</picture>
+</p>
+
 ---
 
 ## Why
@@ -36,6 +43,26 @@ copy it and run it by hand. The commands are the feature, not an implementation 
 - Works from the command line (`diskmap show | plan | apply | doctor | …`) and from a window
   — `diskmap.app`, or the same page in a browser with `diskmap ui` — that draws the map,
   edits the layout and opens the plan in Terminal.
+
+## How it looks
+
+Lay out what you want, and diskmap shows what the drive will look like after the plan, what is kept,
+what is new and what is lost — here, a new ExFAT partition in the free space at the end:
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="assets/screenshots/plan-dark.png">
+  <img src="assets/screenshots/plan-light.png" alt="Adding a partition in the window: the layout editor, the map after the plan, kept and new partitions">
+</picture>
+
+Every plan is a list of commands, each marked as changing nothing, reversible or irreversible.
+This is what the plan above runs — first a backup of the partition map, then one `diskutil` call:
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="assets/screenshots/steps-dark.png">
+  <img src="assets/screenshots/steps-light.png" alt="The steps of the plan: mkdir, two dd commands backing up the partition map, diskutil addPartition">
+</picture>
+
+The screenshots are of a disk image, the way diskmap is tested: no real drive was changed for them.
 
 ## How it keeps your disks safe
 
