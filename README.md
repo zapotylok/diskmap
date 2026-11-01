@@ -61,14 +61,16 @@ brew install zapotylok/diskmap/diskmap
 ```
 
 That gives you the `diskmap` command and the window, `diskmap.app`. To find the window in
-Launchpad and Spotlight, copy it to Applications:
+Launchpad and Spotlight, put it into Applications:
 
 ```sh
-cp -R "$(brew --prefix diskmap)/diskmap.app" /Applications/
+diskmap install-app
 ```
 
-The copy runs the `diskmap` Homebrew installed, so after `brew upgrade diskmap` it runs the
-new version. Copy it again when you want the newest window itself.
+It copies the window into `/Applications`, or `~/Applications` if you cannot write there
+(`--to FOLDER` for another place). The copy runs the `diskmap` Homebrew installed, so after
+`brew upgrade diskmap` it runs the new version; run `diskmap install-app` again when you
+want the newest window itself.
 
 **NTFS and ext4** need a formatter diskmap does not install: `mkntfs` from
 [ntfs-3g](https://github.com/tuxera/ntfs-3g) or Paragon's Microsoft NTFS for Mac; `mke2fs`
@@ -84,14 +86,15 @@ it without asking.
 diskmap's code from Homebrew's folder as root. That folder is writable by your user, as it is
 for every Homebrew tool you run with `sudo`.
 
-To remove it: `brew uninstall diskmap`, and delete the copy of `diskmap.app` if you made one.
+To remove it: `brew uninstall diskmap`, and delete `diskmap.app` from Applications.
 
 ## Getting started
 
 ```sh
 diskmap show            # every disk and partition, as a map
 diskmap doctor          # which formats can be created and mounted here
-open -a diskmap         # the window (after copying it to Applications)
+diskmap install-app     # the window, into Applications
+open -a diskmap         # and open it
 ```
 
 In the window, pick an external drive, lay out its partitions and press **Show plan**. Nothing
