@@ -114,6 +114,12 @@ it without asking.
 diskmap's code from Homebrew's folder as root. That folder is writable by your user, as it is
 for every Homebrew tool you run with `sudo`.
 
+To update, fetch the tap first — `brew upgrade` on its own looks at taps at most once a day:
+
+```sh
+brew update && brew upgrade diskmap
+```
+
 To remove it: `brew uninstall diskmap`, and delete `diskmap.app` from Applications.
 
 ## Getting started
