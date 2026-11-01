@@ -11,7 +11,7 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 SRC="$ROOT/app/diskmap.icon"
 OUT="$ROOT/app/icon"
-MIN_MACOS=26.0
+MIN_MACOS=15.0  # as app/build.sh (K19)
 
 xcrun --find actool >/dev/null 2>&1 || { echo "icon: no actool — install Xcode" >&2; exit 1; }
 TMP=$(mktemp -d)

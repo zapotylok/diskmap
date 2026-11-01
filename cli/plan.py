@@ -43,6 +43,7 @@ from core.planner.repartition import plan_repartition
 from core.planner.shrink import plan_shrink, resizable
 from core.probe import system
 from core.probe.doctor import mke2fs_path, read_ext4_mounting, working_tool
+from core.probe.environment import read_untested_macos
 from core.probe.filesystems import read_registry
 from core.probe.ioreg import parse_disk, read_iomedia
 from core.probe.layout import read_layout
@@ -65,6 +66,12 @@ class Refused(Exception):
 class Built:
     plan: ExecutionPlan
     preview: str
+    untested: str | None = None  # this macOS is not one diskmap was tested on: said first (K19)
+
+
+def _built(plan: ExecutionPlan, now: DiskMap, width: int) -> Built:
+    untested = read_untested_macos()
+    return Built(plan, render_plan(plan, now, width, untested), untested)
 
 
 def load_layout(text: str, source: str) -> Any:
@@ -102,7 +109,7 @@ def build(
             plan = STRATEGIES[strategy](verdict, current, desired, read_registry(), tools, folder)
     except (LayoutError, PlanError, FormatError) as e:
         raise Refused(str(e)) from None
-    return Built(plan, render_plan(plan, now, width))
+    return _built(plan, now, width)
 
 
 def _tools(desired: DesiredLayout | None, search_path: str, home: str) -> Tools:
@@ -142,7 +149,7 @@ def build_shrink(
         plan = plan_shrink(verdict, current, name, new_size, desired, limits, read_registry(), tools, folder)
     except (LayoutError, PlanError, FormatError) as e:
         raise Refused(str(e)) from None
-    return Built(plan, render_plan(plan, now, width))
+    return _built(plan, now, width)
 
 
 def build_grow(slice_arg: str, size_text: str, home: str, width: int, at: datetime) -> Built:
@@ -164,7 +171,7 @@ def build_grow(slice_arg: str, size_text: str, home: str, width: int, at: dateti
         plan = plan_grow(verdict, current, name, new_size, limits, backup_folder(home, at, m[1]))
     except (LayoutError, PlanError) as e:
         raise Refused(str(e)) from None
-    return Built(plan, render_plan(plan, now, width))
+    return _built(plan, now, width)
 
 
 @dataclass(frozen=True)
@@ -209,7 +216,7 @@ def build_mount(slice_arg: str, mount: bool, width: int) -> Built:
         plan = plan_mount(verdict, current, name, mount)
     except PlanError as e:
         raise Refused(str(e)) from None
-    return Built(plan, render_plan(plan, now, width))
+    return _built(plan, now, width)
 
 
 def build_backup(disk_arg: str, home: str, width: int, at: datetime) -> Built:
@@ -219,7 +226,7 @@ def build_backup(disk_arg: str, home: str, width: int, at: datetime) -> Built:
         plan = plan_backup(verdict, current, backup_folder(home, at, name))
     except PlanError as e:
         raise Refused(str(e)) from None
-    return Built(plan, render_plan(plan, now, width))
+    return _built(plan, now, width)
 
 
 def build_restore(source_arg: str, disk_arg: str, home: str, width: int, at: datetime) -> Built:
@@ -236,7 +243,7 @@ def build_restore(source_arg: str, disk_arg: str, home: str, width: int, at: dat
         plan = plan_restore(verdict, current, io, dump, source, backup_folder(home, at, name))
     except PlanError as e:
         raise Refused(str(e)) from None
-    return Built(plan, render_plan(plan, now, width))
+    return _built(plan, now, width)
 
 
 def _mapped(name: str, width: int) -> tuple[AvailableDisk, DiskMap, Disk | Unpartitioned]:

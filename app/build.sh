@@ -20,7 +20,7 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 OUT="${OUT:-$ROOT/app/build}"  # test.sh builds into a temporary folder, the formula into its prefix
 APP="$OUT/diskmap.app"
-MIN_MACOS=26.0  # the only macOS diskmap has been run on (CLAUDE.md §5)
+MIN_MACOS=15.0  # K19: runs from Sequoia on; tested on core.version.TESTED_MACOS only
 
 COMMAND=
 case "${1:-}" in

@@ -250,7 +250,7 @@ def main(argv: list[str]) -> int:
             print(f"{args.command}: {e}", file=sys.stderr)
             return 1
         if getattr(args, "json", False):
-            sys.stdout.write(plan_json(built.plan, built.preview))
+            sys.stdout.write(plan_json(built.plan, built.preview, built.untested))
         else:
             print(built.preview)
         return 0

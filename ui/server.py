@@ -191,7 +191,7 @@ def core_of(search_path: str, home: str, width: int = 100) -> Core:
                 built = cli_plan.build(r.kind, r.disk, r.layout, search_path, home, width, at, after=r.after)
         except (cli_plan.Refused, ProbeError, OSError) as e:
             raise Declined(str(e)) from None
-        return plan_json(built.plan, built.preview)
+        return plan_json(built.plan, built.preview, built.untested)
 
     def limits(slice_name: str) -> str:
         try:

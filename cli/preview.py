@@ -52,12 +52,14 @@ def _strategy(plan: ExecutionPlan) -> str:
     return STRATEGIES.get(plan.strategy, plan.strategy)
 
 
-def render_plan(plan: ExecutionPlan, now: DiskMap, width: int = 80) -> str:
+def render_plan(plan: ExecutionPlan, now: DiskMap, width: int = 80, untested: str | None = None) -> str:
+    """UNTESTED: what to say first on a macOS diskmap was not tested on (K19)."""
     blocks = [
         _wrap(
             f"Plan for {plan.disk} — {_strategy(plan)}. Nothing has been changed: diskmap only shows plans.",
             width,
         ),
+        *(["UNTESTED MACOS\n" + _wrap(f"- {untested}", width)] if untested else []),
         "NOW\n" + render(now, width),
         "AFTER\n" + _after(plan, width),
         "STEPS\n" + "\n".join(_step(n, s, width) for n, s in enumerate(plan.steps, 1)),
@@ -186,7 +188,7 @@ def _losses(n: int, losses: tuple[Loss, ...], width: int) -> str:
 JSON_FORMAT = 1
 
 
-def plan_json(plan: ExecutionPlan, preview: str) -> str:
+def plan_json(plan: ExecutionPlan, preview: str, untested: str | None = None) -> str:
     """PLAN as JSON, with PREVIEW, the text `diskmap plan` prints for it."""
     bs = plan.block_size
     mine = {pp.predicted: pp for pp in plan.partitions}
@@ -250,6 +252,7 @@ def plan_json(plan: ExecutionPlan, preview: str) -> str:
         "needs_root": any(s.needs_root for s in plan.steps),
         "mounting": list(plan.mounting),
         "notes": list(plan.notes),
+        "untested": untested,
         "preview": preview,
     }
     return json.dumps(doc, indent=2, ensure_ascii=False) + "\n"

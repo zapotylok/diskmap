@@ -26,7 +26,7 @@ from core.probe.command import run_read_only
 from core.probe.doctor import find_tools, parse_kexts
 from core.probe.errors import UnfamiliarInput
 from core.probe.filesystems import read_registry
-from core.version import VERSION
+from core.version import TESTED_MACOS, VERSION
 
 SW_VERS = ["/usr/bin/sw_vers"]
 SW_VERS_KEYS = {"ProductName", "ProductVersion", "ProductVersionExtra", "BuildVersion"}
@@ -72,6 +72,24 @@ def parse_sw_vers(text: str) -> dict[str, str]:
     if missing:
         raise UnfamiliarInput(f"sw_vers: no {', '.join(sorted(missing))}")
     return out
+
+
+def untested_macos(macos: dict[str, str]) -> str | None:
+    """What a plan says first on a macOS diskmap was not tested on (K19); None on one it was."""
+    version = macos["ProductVersion"]
+    if version.split(".")[0] in TESTED_MACOS:
+        return None
+    tested = ", ".join(f"macOS {v}" for v in TESTED_MACOS)
+    return (
+        f"diskmap has not been tested on macOS {version} (tested: {tested}). The plan predicts what diskutil "
+        "does from runs on those; here diskutil may do something else, and the result may differ from AFTER. "
+        "Try it on a disk image or a drive whose data you can lose. The journal keeps what every step printed "
+        "(diskmap journal)."
+    )
+
+
+def read_untested_macos() -> str | None:
+    return untested_macos(parse_sw_vers(run_read_only(SW_VERS).decode(errors="replace")))
 
 
 def file_system_kexts(kexts: dict[str, str]) -> dict[str, str]:

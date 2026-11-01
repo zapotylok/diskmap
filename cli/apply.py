@@ -81,6 +81,8 @@ def run(
         say(f"apply: {e}")
         return 1
     say(BACKUP_FIRST)
+    if built.untested:
+        say(f"Not tested here: {built.untested}")  # last, next to the question (K19)
     if ask(f"Type {plan.disk} to apply this plan, anything else cancels: ").strip() != plan.disk:
         say(CANCELLED)
         return 1

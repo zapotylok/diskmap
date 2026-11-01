@@ -598,6 +598,8 @@ function resizeRequest(ed, layout) {
 function planView(plan, ed) {
   const lost = plan.steps.flatMap((s) => s.destroys);
   const out = [el("h4", {}, "After the plan")];
+  // First, as in the preview: this macOS is not one diskmap was tested on (K19).
+  if (plan.untested) out.push(el("div", { class: "warnbox untested" }, el("strong", {}, "Not tested on this macOS"), el("p", {}, plan.untested)));
   out.push(afterBar(plan, ed), afterTable(plan));
   if (lost.length) {
     out.push(el("div", { class: "danger" }, el("strong", {}, "Data lost"),
