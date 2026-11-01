@@ -81,7 +81,8 @@ The screenshots are of a disk image, the way diskmap is tested: no real drive wa
 ## Install
 
 diskmap is installed with [Homebrew](https://brew.sh) and built from source on your Mac.
-It needs macOS 26 on Apple silicon.
+It needs Apple silicon and macOS 15 or later. It is tested on macOS 26; on another version
+every plan says so first, because `diskutil` there may do what the plan does not predict.
 
 ```sh
 brew install zapotylok/diskmap/diskmap
@@ -129,13 +130,31 @@ is written until you press **Apply…**: it opens Terminal with `sudo diskmap ap
 shows the plan once more and asks you to type the disk's name — and, when a volume is
 destroyed, its label.
 
+## Try it on a disk image
+
+Before you change a real drive, try diskmap on a disk image: macOS treats it as a disk, and
+diskmap shows it as `available: disk image`. Nothing on your drives is touched.
+
+```sh
+hdiutil create -size 8g -type SPARSE -layout NONE ~/diskmap-test   # a file that grows as it fills
+hdiutil attach -nomount ~/diskmap-test.sparseimage                   # prints its name, e.g. /dev/disk4
+```
+
+Lay it out in the window or with `diskmap plan` / `sudo diskmap apply`, as you would a drive.
+When you are done, eject it and delete the file:
+
+```sh
+hdiutil detach disk4
+rm ~/diskmap-test.sparseimage
+```
+
 ## Status
 
 diskmap is young and in active development. Each release is a tag of this repository and
 the source Homebrew builds from; the work in between happens elsewhere, so the history here
 is one commit per release.
 
-It is developed and tested on macOS 26 on Apple silicon.
+It is developed and tested on macOS 26 on Apple silicon; it runs on macOS 15 and later.
 
 ## Versions
 
