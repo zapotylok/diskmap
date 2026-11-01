@@ -30,9 +30,10 @@ from typing import Any
 from core.model.volume import Space, VolumeInfo
 from core.probe.command import run_read_only
 from core.probe.errors import UnfamiliarInput
-from core.probe.strict import check_keys, get, optional
+from core.probe.strict import FUSION, check_keys, get, not_fusion, optional
 
 INFO_SLICE_KEYS = {
+    FUSION,  # macOS 15 only (core.probe.strict.not_fusion)
     "AESHardware",
     "APFSContainerFree",
     "APFSContainerReference",
@@ -139,6 +140,7 @@ def parse_info(info: Any, bsd_name: str) -> DuSliceInfo:
         raise UnfamiliarInput(f"{what}: top level is not a dict")
     whole = bool(_WHOLE.match(bsd_name))
     check_keys(info, INFO_WHOLE_KEYS if whole else INFO_SLICE_KEYS, what)
+    not_fusion(info, what)
     if get(info, "DeviceIdentifier", str, what) != bsd_name or get(info, "WholeDisk", bool, what) is not whole:
         raise UnfamiliarInput(f"{what}: not the {'whole disk' if whole else 'slice'} {bsd_name!r}")
     parent = get(info, "ParentWholeDisk", str, what)

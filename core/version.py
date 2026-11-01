@@ -6,7 +6,7 @@ it is. A second release on the same day adds .2, .3, ... One place: the page of
 `diskmap ui` (its About box), `diskmap --version` and the journal (§S9) read it from here.
 """
 
-VERSION = "2026.1101.2"
+VERSION = "2026.1101.3"
 
 # The macOS versions (major) diskmap has been tested on: where the planner's predictions of
 # what diskutil does were measured on the rig (D21, D26, D48). Elsewhere it runs, and every

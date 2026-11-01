@@ -32,7 +32,7 @@ from core.probe.apfs import parse_apfs, read_apfs
 from core.probe.command import run_read_only
 from core.probe.diskutil import TOP_KEYS as LIST_TOP_KEYS
 from core.probe.errors import UnfamiliarInput
-from core.probe.strict import check_keys, dicts, get, optional, slice_id
+from core.probe.strict import FUSION, check_keys, dicts, get, not_fusion, optional, slice_id
 
 LIST_WHOLE_KEYS = {
     "APFSPhysicalStores",
@@ -63,6 +63,7 @@ LIST_SNAPSHOT_KEYS = {"Sealed", "SnapshotBSD", "SnapshotMountPoint", "SnapshotNa
 # `diskutil info` of a whole disk and of the boot volume. The two sets overlap but are
 # not the same; both are exact unions of what was seen, not guesses.
 _INFO_COMMON = {
+    FUSION,  # macOS 15 only (core.probe.strict.not_fusion)
     "AESHardware",
     "APFSContainerReference",
     "APFSPhysicalStores",
@@ -334,6 +335,7 @@ def _parse_info(info: Any, name: str) -> DiskInfo:
     if not isinstance(info, dict):
         raise UnfamiliarInput(f"{what}: top level is not a dict")
     check_keys(info, INFO_WHOLE_KEYS, what)
+    not_fusion(info, what)
     if get(info, "DeviceIdentifier", str, what) != name or get(info, "WholeDisk", bool, what) is not True:
         raise UnfamiliarInput(f"{what}: not the whole disk {name!r}")
     vop = get(info, "VirtualOrPhysical", str, what)
@@ -359,6 +361,7 @@ def _parse_boot(boot: Any) -> BootVolume:
     if not isinstance(boot, dict):
         raise UnfamiliarInput(f"{what}: top level is not a dict")
     check_keys(boot, INFO_BOOT_KEYS, what)
+    not_fusion(boot, what)
     if get(boot, "MountPoint", str, what) != "/":
         raise UnfamiliarInput(f"{what}: MountPoint is not '/'")
     parent = get(boot, "ParentWholeDisk", str, what)

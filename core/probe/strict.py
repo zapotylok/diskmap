@@ -14,6 +14,17 @@ def check_keys(obj: dict[str, Any], allowed: set[str], what: str) -> None:
         raise UnfamiliarInput(f"{what}: unfamiliar keys {sorted(unknown)}")
 
 
+# macOS 15 adds `Fusion` to `diskutil info` and to `diskutil apfs list` containers (a tester's
+# Mac, 15.7.3, 2026-11-01, T-080; macOS 26 has neither). False is an ordinary disk; true — a
+# Fusion Drive, SSD and HDD as one — is not modelled, and stops like any unfamiliar input.
+FUSION = "Fusion"
+
+
+def not_fusion(obj: dict[str, Any], what: str) -> None:
+    if optional(obj, FUSION, bool, what):
+        raise UnfamiliarInput(f"{what}: a Fusion Drive (SSD and HDD as one), which diskmap does not model")
+
+
 def get(obj: dict[str, Any], key: str, typ: type, what: str) -> Any:
     if key not in obj:
         raise UnfamiliarInput(f"{what}: missing key {key!r}")

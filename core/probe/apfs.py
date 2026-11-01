@@ -2,7 +2,9 @@
 
 Shared by the system-disk guard (core.probe.system) and the partition map
 (core.probe.layout). Key allowlists were collected on 2026-09-26 (macOS 26.6.2) from
-this Mac's three internal containers and a rig image's container (§S9).
+this Mac's three internal containers and a rig image's container (§S9). macOS 15 adds one
+container key, `Fusion` (a tester's Mac, 15.7.3, 2026-11-01, T-080): false is an ordinary
+container; true — a Fusion Drive, SSD and HDD in one container — is not modelled, so it stops.
 """
 
 from __future__ import annotations
@@ -14,7 +16,7 @@ from typing import Any
 from core.model.apfs import ApfsContainer, ApfsVolume, PhysicalStore
 from core.probe.command import run_read_only
 from core.probe.errors import UnfamiliarInput
-from core.probe.strict import check_keys, dicts, get, slice_id
+from core.probe.strict import FUSION, check_keys, dicts, get, not_fusion, slice_id
 
 TOP_KEYS = {"Containers"}
 CONTAINER_KEYS = {
@@ -23,6 +25,7 @@ CONTAINER_KEYS = {
     "CapacityFree",
     "ContainerReference",
     "DesignatedPhysicalStore",
+    FUSION,  # macOS 15 only (core.probe.strict.not_fusion)
     "PhysicalStores",
     "Volumes",
 }
@@ -62,6 +65,7 @@ def _container(c: dict[str, Any], what: str) -> ApfsContainer:
     reference = get(c, "ContainerReference", str, cwhat)
     if not _WHOLE.match(reference):
         raise UnfamiliarInput(f"{cwhat}: not a whole-disk identifier")
+    not_fusion(c, cwhat)
     stores = []
     for s in dicts(get(c, "PhysicalStores", list, cwhat), f"{cwhat} PhysicalStores"):
         swhat = f"{cwhat} physical store"
