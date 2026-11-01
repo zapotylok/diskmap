@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024">
+  <!-- ui/static/icon.svg ×16 (D51): three partitions 4 : 2 : 2 in the page's APFS, NTFS, ext colors -->
+  <rect x="256" y="256" width="256" height="512" fill="#5b8def"/>
+  <rect x="576" y="256" width="128" height="512" fill="#d9822b"/>
+  <path d="M768 256h64a64 64 0 0 1 64 64v384a64 64 0 0 1-64 64h-64z" fill="#c2559b"/>
+</svg>

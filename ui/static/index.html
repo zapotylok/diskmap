@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="diskmap-token" content="{{TOKEN}}">
+<title>diskmap</title>
+<link rel="stylesheet" href="/static/style.css">
+<link rel="icon" href="/static/icon.svg" type="image/svg+xml">
+</head>
+<body>
+<header>
+  <h1>diskmap</h1>
+  <select id="disk-pick" aria-label="Disk" hidden></select>
+  <div id="terminal-status" role="status" hidden></div>
+  <button id="refresh" type="button">Refresh</button>
+  <button id="about-open" type="button" title="About diskmap" aria-haspopup="dialog">About</button>
+</header>
+<!-- About (D52): opened by the header's button here, by the app menu in the native window (A′). -->
+<dialog id="about" class="about" aria-labelledby="about-title">
+  <img src="/static/icon.svg" alt="" width="64" height="64">
+  <h3 id="about-title">diskmap</h3>
+  <p class="version">Version {{VERSION}}</p>
+  <p>A map of the partitions on external drives, and a planner for changing them.</p>
+  <p>diskmap has no code of its own that writes to a disk. Every change is a command of the tools
+  that come with macOS — diskutil above all — or of the formatter a file system needs; each one
+  is shown before it runs and can be run by hand. Internal and startup disks are only shown.</p>
+  <p class="warranty">diskmap is free and comes with no warranty. Changing a partition map can destroy data:
+  keep a copy of anything on the drive you cannot lose. diskmap saves the partition map before each change —
+  not the files on it.</p>
+  <p class="authors">Vitali Zapatylak and Claude (Anthropic) · MIT License</p>
+  <p class="links">
+    <a href="https://buymeacoffee.com/VitaliZapatylak" target="_blank" rel="noopener noreferrer">Support diskmap</a>
+    · <a href="mailto:lexx.vit@gmail.com?subject=diskmap">Feedback</a>
+  </p>
+  <div class="actions end"><button id="about-close" type="button">Close</button></div>
+</dialog>
+<main>
+  <section id="disks" aria-live="polite"><p class="muted">Reading the disks…</p></section>
+  <section id="detail" hidden></section>
+</main>
+<script src="/static/app.js"></script>
+<script src="/static/editor.js"></script>
+</body>
+</html>

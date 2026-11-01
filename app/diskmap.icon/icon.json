@@ -1,0 +1,32 @@
+{
+  "fill" : {
+    "solid" : "srgb:0.14902,0.19608,0.27843,1.00000"
+  },
+  "groups" : [
+    {
+      "layers" : [
+        {
+          "image-name" : "partitions.svg",
+          "name" : "partitions"
+        },
+        {
+          "image-name" : "plug.svg",
+          "name" : "plug"
+        }
+      ],
+      "shadow" : {
+        "kind" : "neutral",
+        "opacity" : 0.5
+      },
+      "translucency" : {
+        "enabled" : true,
+        "value" : 0.4
+      }
+    }
+  ],
+  "supported-platforms" : {
+    "squares" : [
+      "macOS"
+    ]
+  }
+}
