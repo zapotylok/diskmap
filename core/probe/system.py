@@ -32,7 +32,7 @@ from core.probe.apfs import parse_apfs, read_apfs
 from core.probe.command import run_read_only
 from core.probe.diskutil import TOP_KEYS as LIST_TOP_KEYS
 from core.probe.errors import UnfamiliarInput
-from core.probe.strict import FUSION, check_keys, dicts, get, not_fusion, optional, slice_id
+from core.probe.strict import FUSION, check_keys, dicts, get, not_fusion, optional, slice_id, store_id
 
 LIST_WHOLE_KEYS = {
     "APFSPhysicalStores",
@@ -295,7 +295,7 @@ def _parse_list(listing: Any) -> list[ListedDisk]:
         stores = []
         for s in dicts(optional(whole, "APFSPhysicalStores", list, wwhat) or [], f"{wwhat} APFSPhysicalStores"):
             check_keys(s, LIST_STORE_KEYS, f"{wwhat} physical store")
-            stores.append(slice_id(s, "DeviceIdentifier", f"{wwhat} physical store"))
+            stores.append(store_id(s, "DeviceIdentifier", f"{wwhat} physical store"))
         disks.append(
             ListedDisk(
                 bsd_name=name,
@@ -344,7 +344,7 @@ def _parse_info(info: Any, name: str) -> DiskInfo:
     stores = []
     for s in dicts(optional(info, "APFSPhysicalStores", list, what) or [], f"{what} APFSPhysicalStores"):
         check_keys(s, INFO_STORE_KEYS, f"{what} physical store")
-        stores.append(slice_id(s, "APFSPhysicalStore", f"{what} physical store"))
+        stores.append(store_id(s, "APFSPhysicalStore", f"{what} physical store"))
     return DiskInfo(
         bsd_name=name,
         internal=get(info, "Internal", bool, what),

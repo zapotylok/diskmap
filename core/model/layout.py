@@ -94,6 +94,7 @@ class Unpartitioned:
     block_size: int
     volume_name: str | None  # diskutil list's, as on Partition
     volume: VolumeInfo | None = None  # the whole disk's `diskutil info` (T-021); None until attached
+    apfs: ApfsContainer | None = None  # a container whose physical store is the whole disk (K20)
 
     @property
     def blocks(self) -> int:

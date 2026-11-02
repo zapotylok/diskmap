@@ -194,6 +194,8 @@ function diskCard(disk, width) {
   }
   if (disk.extents) {
     card.append(bar(disk, width, !available), table(disk));
+  } else if (disk.apfs) {
+    card.append(el("p", {}, `Whole-disk APFS container ${disk.apfs.reference}, no partition map`));
   } else if (disk.volume) {
     card.append(el("p", {}, `Whole-disk file system, no partition map: ${disk.volume.filesystem_name || "unknown"}`));
   }
@@ -440,7 +442,7 @@ function applyDialog(request, disk, lossy) {
     el("ol", { class: "steps" },
       el("li", {}, "Terminal opens a new window; sudo asks for your Mac password."),
       el("li", {}, "diskmap apply builds this plan again and shows it."),
-      el("li", {}, `It runs only after you type the disk's name, ${disk}`
+      el("li", {}, `It runs only after you type the disk's name, "${disk}"`
         + (lossy ? ", and the label of a volume it destroys." : "."))),
     el("p", { class: "backup-first" }, BACKUP_FIRST),
     el("p", { class: "note" }, "Nothing is confirmed here: what the terminal shows is what runs."),

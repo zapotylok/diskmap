@@ -26,6 +26,7 @@ and the backup folder are inputs.
 
 from __future__ import annotations
 
+from core.model.apfs import ApfsContainer
 from core.model.desired import DesiredLayout, human
 from core.model.filesystems import Registry
 from core.model.layout import GPT, Disk, Unpartitioned
@@ -168,6 +169,8 @@ def _check_agrees(after: tuple[Predicted, ...], fmts: list[F.Format], sizes: lis
 
 
 def _destroys(current: Disk | Unpartitioned) -> tuple[Loss, ...]:
+    if isinstance(current, Unpartitioned) and current.apfs is not None:
+        return _apfs_losses(current.apfs, current.bsd_name)
     if isinstance(current, Unpartitioned):
         v = current.volume
         if v is not None and v.filesystem is not None:
@@ -176,17 +179,23 @@ def _destroys(current: Disk | Unpartitioned) -> tuple[Loss, ...]:
     out: list[Loss] = []
     for p in current.partitions:
         if p.apfs is not None:
-            where = f"container {p.apfs.reference} on {p.bsd_name}"
-            if not p.apfs.volumes:
-                out.append(Loss(p.bsd_name, f"empty APFS {where}", 0, True))
-            for av in p.apfs.volumes:
-                roles = f" [{', '.join(av.roles)}]" if av.roles else ""
-                what = f'APFS volume "{av.name}"{roles} ({where})'
-                out.append(Loss(av.bsd_name, what, av.capacity_in_use, True, av.name or None))
+            out.extend(_apfs_losses(p.apfs, p.bsd_name))
         elif p.volume is not None and p.volume.filesystem is not None:
             out.append(Loss(p.bsd_name, fs_name(p.volume), _used(p.volume), p.volume.confirmed, p.volume.label))
         else:
             out.append(Loss(p.bsd_name, f"{p.type_name}, no file system recognized", None, False))
+    return tuple(out)
+
+
+def _apfs_losses(c: ApfsContainer, store: str) -> tuple[Loss, ...]:
+    where = f"container {c.reference} on {store}"
+    if not c.volumes:
+        return (Loss(store, f"empty APFS {where}", 0, True),)
+    out = []
+    for av in c.volumes:
+        roles = f" [{', '.join(av.roles)}]" if av.roles else ""
+        what = f'APFS volume "{av.name}"{roles} ({where})'
+        out.append(Loss(av.bsd_name, what, av.capacity_in_use, True, av.name or None))
     return tuple(out)
 
 

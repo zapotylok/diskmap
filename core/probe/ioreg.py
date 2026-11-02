@@ -70,7 +70,10 @@ _DRIVER = _IOSERVICE | {
     "IOProviderClass",
 }
 
-WHOLE_KEYS = _MEDIA | {"IOMediaIcon"}
+# TierType marks an APFS physical store; on a whole disk when the store is the whole disk
+# (macOS 15 cryptex images, K20) — as on a GPT partition below.
+WHOLE_KEYS = _MEDIA | {"IOMediaIcon", "TierType"}
+APFS_CONTAINER_SCHEME = "AppleAPFSContainerScheme"
 # kIOMediaLiveKey (IOPartitionScheme.h): set only when the scheme re-read the table while
 # a partition of the disk was open (D24). Seen on GPT and MBR.
 _PARTITION = _MEDIA | {"Base", "IORegistryEntryLocation", "Partition ID", "Live"}
@@ -143,15 +146,21 @@ def parse_disk(roots: Any, bsd_name: str) -> IoDisk:
     block_size = get(whole, "Preferred Block Size", int, what)
     if block_size <= 0 or size <= 0 or size % block_size:
         raise UnfamiliarInput(f"{what}: Size={size} is not a positive multiple of block size {block_size}")
-    if get(whole, "Leaf", bool, what) is not (scheme == NO_SCHEME):
-        raise UnfamiliarInput(f"{what}: Leaf does not match Content={scheme!r}")
-
     if scheme == NO_SCHEME:
+        # The one child allowed besides the ignored: an APFS container over the whole
+        # disk (K20) — then the disk is not a leaf.
+        containers = 0
         for child in _children(whole, what):
             cls = get(child, "IOObjectClass", str, what)
-            if cls not in WHOLE_CHILD_CLASSES_IGNORED:
+            if cls == APFS_CONTAINER_SCHEME:
+                containers += 1
+            elif cls not in WHOLE_CHILD_CLASSES_IGNORED:
                 raise UnfamiliarInput(f"{what}: no partition scheme, yet a child of class {cls!r}")
+        if containers > 1 or get(whole, "Leaf", bool, what) is not (containers == 0):
+            raise UnfamiliarInput(f"{what}: Leaf does not match Content={scheme!r} and {containers} APFS container(s)")
         return IoDisk(bsd_name, size, block_size, NO_SCHEME, None, None, ())
+    if get(whole, "Leaf", bool, what):
+        raise UnfamiliarInput(f"{what}: Leaf does not match Content={scheme!r}")
 
     drivers = []
     for child in _children(whole, what):

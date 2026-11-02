@@ -10,7 +10,7 @@ Two stages:
 
 1. Protection. A disk is protected when anything ties it to the running system or
    when diskmap cannot tell: it hosts the boot volume `/`; a volume on it is mounted
-   at `/` or under /System/Volumes/; Internal is true; it is an AppleRAID member or
+   at `/` or anywhere under /System/ (K20); Internal is true; it is an AppleRAID member or
    CoreStorage; it belongs to an APFS container that spans several physical stores
    (Fusion) or holds an unfamiliar or boot-policy role; the sources disagree about
    it; its `diskutil info` did not parse. Protection spreads through APFS both ways —
@@ -49,10 +49,12 @@ MACOS_ROLES = {"Data", "Preboot", "Recovery", "System", "Update", "VM"}
 # Roles seen only in the internal boot-policy container (disk1 on Apple Silicon).
 BOOT_POLICY_ROLES = {"Hardware", "xART"}
 
-SYSTEM_MOUNT_PREFIX = "/System/Volumes/"
+# The system's own mount points: /System/Volumes/* (Data, Preboot, ...) and, on macOS 15, the
+# cryptex images it attaches for its assets under /System/Library/AssetsV2/ (K20).
+SYSTEM_MOUNT_PREFIX = "/System/"
 CORESTORAGE = "Apple_CoreStorage"
 
-_OWNER = re.compile(r"^(disk[0-9]+)s[0-9]+")
+_OWNER = re.compile(r"^(disk[0-9]+)(s[0-9]+)*$")
 
 Protect = Callable[[str, str, str], bool]
 
@@ -154,10 +156,11 @@ class _Inconsistent(Exception):
     pass
 
 
-def _owner(slice_name: str) -> str:
-    m = _OWNER.match(slice_name)
+def _owner(store: str) -> str:
+    """The whole disk of STORE: of a slice, or a whole disk itself (K20)."""
+    m = _OWNER.match(store)
     if not m:
-        raise _Inconsistent(f"{slice_name!r} is not a slice")
+        raise _Inconsistent(f"{store!r} is not a disk or slice")
     return m.group(1)
 
 
@@ -174,6 +177,9 @@ def _container_stores(view: SystemView, protect: Protect) -> dict[str, tuple[str
     }
     by_apfs = {c.reference: set(c.store_names) for c in view.containers}
     listed_slices = {v.bsd_name for d in view.disks for v in d.volumes}
+    # A store may be a whole disk only when the list shows it bare: no partitions, no
+    # container of its own (K20).
+    bare_wholes = {d.bsd_name for d in view.disks if not d.volumes and not d.physical_stores}
 
     stores: dict[str, tuple[str, ...]] = {}
     for name in sorted(set(by_list) | set(by_info) | set(by_apfs)):
@@ -187,9 +193,10 @@ def _container_stores(view: SystemView, protect: Protect) -> dict[str, tuple[str
             detail = f"list, apfs list and info disagree on the physical stores of container {name}"
             for n in [name, *whole]:
                 protect(n, "inconsistent", detail)
-        for s in sorted(union - listed_slices):
+        for s in sorted(union - listed_slices - bare_wholes):
             for n in [name, _owner(s)]:
-                protect(n, "inconsistent", f"physical store {s} of container {name} is not a listed partition")
+                detail = f"physical store {s} of container {name} is neither a listed partition nor a bare whole disk"
+                protect(n, "inconsistent", detail)
     return stores
 
 

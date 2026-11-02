@@ -217,9 +217,13 @@ def _unpartitioned(d: Unpartitioned, access: list[str], width: int) -> str:
         _wrap(f"{d.bsd_name} — {size(d.size)}, no partition table, {d.block_size}-byte blocks", width),
         _wrap(f"{d.size} bytes", width, "  "),
         *access,
-        "[" + (WHOLE_FS if has_fs else FREE) * (width - 2) + "]",
+        "[" + (WHOLE_FS if has_fs or d.apfs is not None else FREE) * (width - 2) + "]",
     ]
-    if has_fs:
+    if d.apfs is not None:  # K20
+        lines.append(_sub(f"whole disk: {_container(d.apfs, d.bsd_name)}", width))
+        for v in d.apfs.volumes:
+            lines.append(_sub(f"└ {v.bsd_name}  {_apfs_volume(v, {}, [])}", width, hang=4))
+    elif has_fs:
         assert d.volume is not None
         lines.append(_wrap(f"whole disk: {_fs(d.volume, (), [])}", width, indent="  "))
     else:
@@ -333,6 +337,7 @@ def _disk_json(d: Disk | Unpartitioned | Failed, snaps: Mapping[str, tuple[str, 
             "block_size": d.block_size,
             "scheme": None,
             "volume": asdict(d.volume) if d.volume is not None else None,
+            "apfs": asdict(d.apfs) if d.apfs is not None else None,
         }
     return {
         "device": d.bsd_name,

@@ -28,7 +28,7 @@ class ApfsVolume:
 
 @dataclass(frozen=True)
 class PhysicalStore:
-    bsd_name: str  # a partition, diskNsM
+    bsd_name: str  # a partition, diskNsM; or a whole disk without a partition table (K20)
     size: int  # bytes
 
 

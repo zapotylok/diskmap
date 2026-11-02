@@ -51,6 +51,18 @@ def dicts(value: Any, what: str) -> list[dict[str, Any]]:
     return value
 
 
+_STORE = re.compile(r"^disk[0-9]+(s[0-9]+)*$")
+
+
+def store_id(obj: dict[str, Any], key: str, what: str) -> str:
+    """An APFS physical store under KEY: a slice (diskNsM), or a whole disk without a
+    partition table — macOS 15 attaches its cryptex images that way (K20)."""
+    name = get(obj, key, str, what)
+    if not _STORE.match(name):
+        raise UnfamiliarInput(f"{what}: {key} {name!r} is not a disk or slice identifier")
+    return name
+
+
 def slice_id(obj: dict[str, Any], key: str, what: str) -> str:
     """A BSD slice identifier (diskNsM, diskNsMsK) under KEY."""
     name = get(obj, key, str, what)

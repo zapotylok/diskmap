@@ -16,7 +16,7 @@ from typing import Any
 from core.model.apfs import ApfsContainer, ApfsVolume, PhysicalStore
 from core.probe.command import run_read_only
 from core.probe.errors import UnfamiliarInput
-from core.probe.strict import FUSION, check_keys, dicts, get, not_fusion, slice_id
+from core.probe.strict import FUSION, check_keys, dicts, get, not_fusion, slice_id, store_id
 
 TOP_KEYS = {"Containers"}
 CONTAINER_KEYS = {
@@ -70,7 +70,7 @@ def _container(c: dict[str, Any], what: str) -> ApfsContainer:
     for s in dicts(get(c, "PhysicalStores", list, cwhat), f"{cwhat} PhysicalStores"):
         swhat = f"{cwhat} physical store"
         check_keys(s, STORE_KEYS, swhat)
-        stores.append(PhysicalStore(bsd_name=slice_id(s, "DeviceIdentifier", swhat), size=get(s, "Size", int, swhat)))
+        stores.append(PhysicalStore(bsd_name=store_id(s, "DeviceIdentifier", swhat), size=get(s, "Size", int, swhat)))
     if not stores:
         raise UnfamiliarInput(f"{cwhat}: no physical store")
     if get(c, "DesignatedPhysicalStore", str, cwhat) not in [s.bsd_name for s in stores]:

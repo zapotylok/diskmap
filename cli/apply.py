@@ -83,7 +83,7 @@ def run(
     say(BACKUP_FIRST)
     if built.untested:
         say(f"Not tested here: {built.untested}")  # last, next to the question (K19)
-    if ask(f"Type {plan.disk} to apply this plan, anything else cancels: ").strip() != plan.disk:
+    if ask(f'Type "{plan.disk}" to apply this plan, anything else cancels: ').strip() != plan.disk:
         say(CANCELLED)
         return 1
     victim = confirming_loss(plan)
@@ -95,7 +95,7 @@ def run(
             )
             expected = victim.label
         else:
-            prompt = f"It destroys {lost} volume(s) — see DATA LOST. Type {victim.device}, which has no label: "
+            prompt = f'It destroys {lost} volume(s) — see DATA LOST. Type "{victim.device}", which has no label: '
             expected = victim.device
         if ask(prompt).rstrip("\n") != expected:
             say(CANCELLED)

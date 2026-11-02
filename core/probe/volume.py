@@ -147,9 +147,10 @@ def parse_info(info: Any, bsd_name: str) -> DuSliceInfo:
     container = optional(info, "APFSContainerReference", str, what)
     if not _WHOLE.match(parent) or (container is not None and not _WHOLE.match(container)):
         raise UnfamiliarInput(f"{what}: ParentWholeDisk / APFSContainerReference are not whole disks")
-    if whole and (parent != bsd_name or container is not None):
+    if whole and parent != bsd_name:
         # A synthesized container is a whole disk too, but it is read through its volumes.
-        raise UnfamiliarInput(f"{what}: a whole disk that is its own parent and no APFS container was expected")
+        # A whole disk may name a container only as its physical store (K20).
+        raise UnfamiliarInput(f"{what}: a whole disk that is not its own parent")
 
     in_map = get(info, "PartitionMapPartition", bool, what)
     offset = optional(info, "PartitionMapPartitionOffset", int, what)

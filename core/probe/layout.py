@@ -39,7 +39,7 @@ def slices(disk: Disk | Unpartitioned) -> list[str]:
     """Every partition and every volume of their APFS containers: what `diskutil info` is read for.
     A disk without a partition table: the disk itself."""
     if isinstance(disk, Unpartitioned):
-        return [disk.bsd_name]
+        return [disk.bsd_name, *(v.bsd_name for v in (disk.apfs.volumes if disk.apfs is not None else ()))]
     out = []
     seen = set()
     for p in disk.partitions:
@@ -65,7 +65,10 @@ def attach_volumes(disk: Disk | Unpartitioned, infos: Mapping[str, Any]) -> Disk
         placed = (i.parent, i.partition_offset, i.size, i.content, i.volume.label)
         if placed != (disk.bsd_name, None, disk.size, ioreg.NO_SCHEME, disk.volume_name):
             raise UnfamiliarInput(f"{disk.bsd_name}: diskutil info {placed} disagrees with the map")
-        return replace(disk, volume=i.volume)
+        if i.container != (disk.apfs.reference if disk.apfs is not None else None):
+            raise UnfamiliarInput(f"{disk.bsd_name}: diskutil info names APFS container {i.container}")
+        apfs = _attach_container(disk.apfs, parsed) if disk.apfs is not None else None
+        return replace(disk, volume=i.volume, apfs=apfs)
     bs = disk.block_size
     containers: dict[str, ApfsContainer] = {}
     partitions = []
@@ -103,16 +106,23 @@ def attach_apfs(disk: Disk | Unpartitioned, containers: tuple[ApfsContainer, ...
 
     A partition claimed by two containers, or a store whose size differs from the
     partition's, means the sources describe different disks — a stop (§S9). A
-    container spanning several partitions (Fusion) hangs on each of them.
+    container spanning several partitions (Fusion) hangs on each of them. On a disk
+    without a partition table a container may cover the whole disk (K20).
     """
-    if isinstance(disk, Unpartitioned):
-        return disk  # a physical store is always a partition
     by_store: dict[str, ApfsContainer] = {}
     for c in containers:
         for store in c.physical_stores:
             if store.bsd_name in by_store:
                 raise UnfamiliarInput(f"{store.bsd_name}: physical store of two APFS containers")
             by_store[store.bsd_name] = c
+    if isinstance(disk, Unpartitioned):
+        # Without a partition table the store can only be the whole disk (K20).
+        c = by_store.get(disk.bsd_name)
+        if c is None:
+            return disk
+        if len(c.physical_stores) > 1 or c.physical_stores[0].size != disk.size:
+            raise UnfamiliarInput(f"{disk.bsd_name}: APFS container {c.reference} is not exactly this whole disk")
+        return replace(disk, apfs=c)
     partitions = []
     for p in disk.partitions:
         c = by_store.get(p.bsd_name)
