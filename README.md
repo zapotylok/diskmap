@@ -102,8 +102,13 @@ want the newest window itself.
 
 **NTFS and ext4** need a formatter diskmap does not install: `mkntfs` from
 [ntfs-3g](https://github.com/tuxera/ntfs-3g) or Paragon's Microsoft NTFS for Mac; `mke2fs`
-from `brew install e2fsprogs` or Paragon's extFS for Mac. `diskmap doctor` shows which
-formats you can create here and which of them macOS can then mount.
+from `brew install e2fsprogs` or Paragon's extFS for Mac. Without one, that format is greyed
+out in the window, which says what to install. `diskmap doctor` shows which formats you can
+create here and which of them macOS can then mount.
+
+Creating a volume is not the same as using it on this Mac: macOS mounts NTFS read-only and
+does not mount ext4 at all. An NTFS or ext4 partition made here is ready for Windows or Linux;
+to write to it on a Mac you need a third-party driver, such as Paragon's.
 
 **Why Homebrew and not a download.** A downloaded app has to be signed with an Apple
 Developer ID and notarized, or macOS refuses to open it; that will come later. Homebrew
