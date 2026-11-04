@@ -100,15 +100,8 @@ It copies the window into `/Applications`, or `~/Applications` if you cannot wri
 `brew upgrade diskmap` it runs the new version; run `diskmap install-app` again when you
 want the newest window itself.
 
-**NTFS and ext4** need a formatter diskmap does not install: `mkntfs` from
-[ntfs-3g](https://github.com/tuxera/ntfs-3g) or Paragon's Microsoft NTFS for Mac; `mke2fs`
-from `brew install e2fsprogs` or Paragon's extFS for Mac. Without one, that format is greyed
-out in the window, which says what to install. `diskmap doctor` shows which formats you can
-create here and which of them macOS can then mount.
-
-Creating a volume is not the same as using it on this Mac: macOS mounts NTFS read-only and
-does not mount ext4 at all. An NTFS or ext4 partition made here is ready for Windows or Linux;
-to write to it on a Mac you need a third-party driver, such as Paragon's.
+**NTFS and ext4** need tools diskmap does not install, to create them and to use them on a
+Mac: see [NTFS and ext4](#ntfs-and-ext4).
 
 **Why Homebrew and not a download.** A downloaded app has to be signed with an Apple
 Developer ID and notarized, or macOS refuses to open it; that will come later. Homebrew
@@ -126,6 +119,29 @@ brew update && brew upgrade diskmap
 ```
 
 To remove it: `brew uninstall diskmap`, and delete `diskmap.app` from Applications.
+
+## NTFS and ext4
+
+Making a volume and using it on a Mac are two different things. An NTFS or ext4 partition
+made here is ready for Windows or Linux; whether this Mac can then read it, or write to it,
+depends on drivers diskmap does not install. **Formats…** in the window — or `diskmap doctor`
+in Terminal — shows, format by format, what creates a volume here and what mounts it.
+
+| | Create | Mount on this Mac |
+|---|---|---|
+| NTFS | `mkntfs` from ntfs-3g, or Paragon's Microsoft NTFS for Mac | read-only by macOS itself; read-write with ntfs-3g and macFUSE, or with Paragon |
+| ext4 | `mke2fs` from e2fsprogs, or Paragon's extFS for Mac | not by macOS itself; read-write with Paragon's extFS for Mac |
+
+**ext4.** One command makes ext4 available here: `brew install e2fsprogs`. Formats… offers
+it in a Terminal window, where it runs only once you press Return. Mounting ext4 on a Mac
+takes Paragon's extFS for Mac, a paid product.
+
+**NTFS.** [ntfs-3g](https://github.com/tuxera/ntfs-3g) gives both `mkntfs` and a read-write
+driver, but Homebrew's formula for it is Linux-only: on a Mac it is built from source, against
+[macFUSE](https://macfuse.github.io). macFUSE adds a system extension that macOS asks you to
+allow in System Settings; follow its own instructions for your macOS version. diskmap
+installs neither and only reports what it finds. Its own Mount goes through `diskutil`,
+which mounts NTFS the way macOS chooses — read-only, unless Paragon's driver takes it.
 
 ## Getting started
 
