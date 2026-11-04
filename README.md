@@ -138,10 +138,23 @@ takes Paragon's extFS for Mac, a paid product.
 
 **NTFS.** [ntfs-3g](https://github.com/tuxera/ntfs-3g) gives both `mkntfs` and a read-write
 driver, but Homebrew's formula for it is Linux-only: on a Mac it is built from source, against
-[macFUSE](https://macfuse.github.io). macFUSE adds a system extension that macOS asks you to
-allow in System Settings; follow its own instructions for your macOS version. diskmap
-installs neither and only reports what it finds. Its own Mount goes through `diskutil`,
-which mounts NTFS the way macOS chooses — read-only, unless Paragon's driver takes it.
+[macFUSE](https://macfuse.github.io). macFUSE's kernel extension has to be allowed once; on
+Apple silicon that means lowering security in Recovery — follow macFUSE's own instructions for
+your macOS version. diskmap installs neither and only reports what it finds.
+
+diskmap's own Mount goes through `diskutil`, which mounts NTFS the way macOS chooses:
+read-only. For read-write, unmount the volume and mount it with ntfs-3g — as root, since a
+self-built ntfs-3g uses macFUSE's shared libfuse (`diskNsM` is the partition, as `diskutil list`
+shows it):
+
+```bash
+diskutil unmount /dev/diskNsM
+sudo mkdir -p /Volumes/NTFS
+sudo ntfs-3g /dev/diskNsM /Volumes/NTFS -o local -o allow_other -o auto_xattr -o volname=NTFS
+```
+
+macFUSE's extension loads by itself on that first mount. **Formats…** then shows the volume
+under NTFS as mounted by `macfuse`, read-write.
 
 ## Getting started
 
