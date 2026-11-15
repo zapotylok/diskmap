@@ -328,6 +328,7 @@ function renderEditor() {
   const sketchBox = el("div", { class: "sketch" });
   parts.push(el("div", { class: "label-row" }, el("span", { class: "muted" }, "Sketch — approximate; the plan has the exact sizes"),
     el("span", { class: "muted" }, `${size(g.span)}`)), sketchBox, ed.rows.length ? rowsTable(ed) : null,
+    ed.rows.length ? missingFormatters() : null,
     el("div", { class: "actions" },
       rowsAllowed ? el("button", { type: "button", onclick: () => { ed.rows.push({ format: defaultFormat(), label: "", size: ed.rows.some((r) => parseSize(r.size).kind === "rest") ? "1GB" : "rest" }); invalidate(ed); renderEditor(); } }, "+ Partition") : null,
       el("button", { type: "button", class: "primary", id: "show-plan", onclick: () => showPlanFor(ed) }, "Show plan")),
@@ -403,6 +404,18 @@ function rowsTable(ed) {
   return el("table", { class: "rows" },
     el("thead", {}, el("tr", {}, ["#", "Format", "Label", "Size", "≈", ""].map((h) => el("th", { class: h === "≈" ? "num" : null }, h)))),
     el("tbody", {}, body));
+}
+
+// A format greyed out for want of a formatter says so in plain sight: the reason on its
+// <option> is a tooltip a native menu does not show.
+function missingFormatters() {
+  const missing = (state.formats ? state.formats.formats : []).filter((f) => !f.plannable && f.install);
+  if (!missing.length) return null;
+  return el("div", { class: "missing-formatters" },
+    el("ul", { class: "notes" }, missing.map((f) => el("li", {}, `${f.name}: ${f.why} — ${f.install}.`))),
+    el("p", { class: "note" }, "Paragon's NTFS and extFS for Mac, when installed, add formats of their own. ",
+      el("button", { type: "button", class: "link", onclick: showFormats }, "Formats…"),
+      " tells which formats this Mac can create, which of them it then mounts, and how to install what is missing."));
 }
 
 // Rows I and I+1 change places, in the draft too (ed.rows is the draft's array). The core

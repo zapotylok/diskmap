@@ -5,7 +5,8 @@ The server runs as the user who started it, never as root, and does what `show` 
 `sudo diskmap apply …` in a terminal, where the plan is built again, shown and confirmed
 by the process that runs it (K14). One exception, K16: it mounts and unmounts a partition
 by running `diskmap mount|unmount` — a one-step plan that changes no map and destroys
-nothing, journaled like any other.
+nothing, journaled like any other. And it installs nothing (K22): for a package on a fixed
+list it opens a script in Terminal that runs `brew install` only once Return is pressed.
 
 Who may talk to it:
 - it listens on 127.0.0.1 only, on a port the system picks;
@@ -112,6 +113,29 @@ class Core:
     # Mount or unmount a partition (T-073, K16): `diskmap mount|unmount` in a process of its
     # own. JSON with what it printed; Declined with that when it failed.
     mount: Callable[[MountRequest], str]
+    # The doctor report for the Formats dialog (T-081): cli.doctor.to_json.
+    doctor: Callable[[], str]
+    # Hand a package of ui.install.INSTALLS to a new Terminal window (K22). JSON: the
+    # install's id, the command line, whether Terminal opened it (and why not).
+    install: Callable[[str], str]
+    # How an install ended, by its id. JSON: done, ran, status.
+    install_result: Callable[[str], str]
+
+
+@dataclass(frozen=True)
+class InstallRequest:
+    package: str
+
+
+def parse_install_request(body: Any) -> InstallRequest:
+    """BODY, the JSON of an install request: {"package": one of ui.install.INSTALLS}."""
+    from ui.install import INSTALLS
+
+    if not isinstance(body, dict) or set(body) != {"package"}:
+        raise BadRequest('expected {"package": "..."}')
+    if body["package"] not in INSTALLS:
+        raise BadRequest(f"package: expected one of {', '.join(INSTALLS)}")
+    return InstallRequest(body["package"])
 
 
 def parse_mount_request(body: Any) -> MountRequest:
@@ -276,7 +300,44 @@ def core_of(search_path: str, home: str, width: int = 100) -> Core:
             raise Declined(output or f"diskmap {verb} exited {done.returncode}")
         return json.dumps({"output": output}, ensure_ascii=False)
 
-    return Core(disk_map, formats, plan, terminal, terminal_result, limits, mount)
+    def doctor() -> str:
+        from cli.doctor import to_json
+        from core.probe import doctor as D
+        from core.probe.trial import read_setup, read_trial
+        from ui.install import INSTALLS
+
+        try:
+            report = D.build(D.read_raw(search_path, home))
+            return to_json(report, read_trial(home, read_setup(search_path, home)), INSTALLS)
+        except (ProbeError, OSError) as e:
+            raise Declined(str(e)) from None
+
+    def install(package: str) -> str:
+        from ui import install as I
+        from ui.terminal import HandoffError, open_terminal
+
+        try:
+            i = I.prepare(package, home, datetime.now(UTC).astimezone(), I.find_brew(search_path))
+        except (HandoffError, OSError) as e:
+            raise Declined(str(e)) from None
+        error = None
+        try:
+            open_terminal(i.script)
+        except HandoffError as e:
+            error = str(e)
+        return json.dumps({"id": i.id, "command_line": i.command_line, "opened": error is None, "error": error})
+
+    def install_result(install_id: str) -> str:
+        from ui import install as I
+        from ui.terminal import HandoffError
+
+        try:
+            o = I.result(home, install_id)
+        except HandoffError as e:
+            raise Declined(str(e)) from None
+        return json.dumps({"done": o.done, "ran": o.ran, "status": o.status})
+
+    return Core(disk_map, formats, plan, terminal, terminal_result, limits, mount, doctor, install, install_result)
 
 
 class Server(ThreadingHTTPServer):
@@ -340,6 +401,17 @@ class Handler(BaseHTTPRequestHandler):
             if not self._token_ok():
                 return
             return self._call(self.server.core.formats)
+        if url.path == "/api/doctor":
+            if not self._token_ok():
+                return
+            return self._call(self.server.core.doctor)
+        if url.path == "/api/install/result":
+            if not self._token_ok():
+                return
+            ids = parse_qs(url.query).get("id", [])
+            if len(ids) != 1:
+                return self._json(HTTPStatus.BAD_REQUEST, {"error": "id: expected one"})
+            return self._call(lambda: self.server.core.install_result(ids[0]))
         if url.path == "/api/terminal/result":
             if not self._token_ok():
                 return
@@ -360,7 +432,7 @@ class Handler(BaseHTTPRequestHandler):
         if not self._host_ok():
             return
         path = urlsplit(self.path).path
-        if path not in ("/api/plan", "/api/terminal", "/api/handoff", "/api/mount"):
+        if path not in ("/api/plan", "/api/terminal", "/api/handoff", "/api/mount", "/api/install"):
             return self._text(HTTPStatus.NOT_FOUND, "Not found.")
         if not self._token_ok():
             return
@@ -372,7 +444,7 @@ class Handler(BaseHTTPRequestHandler):
             return self._json(HTTPStatus.LENGTH_REQUIRED, {"error": "Content-Length required"})
         if not 0 <= length <= MAX_BODY:
             return self._json(HTTPStatus.REQUEST_ENTITY_TOO_LARGE, {"error": "request too large"})
-        parse = parse_mount_request if path == "/api/mount" else parse_plan_request
+        parse = {"/api/mount": parse_mount_request, "/api/install": parse_install_request}.get(path, parse_plan_request)
         try:
             request = parse(json.loads(self.rfile.read(length)))
         except (json.JSONDecodeError, UnicodeDecodeError):
@@ -382,6 +454,8 @@ class Handler(BaseHTTPRequestHandler):
         core = self.server.core
         if isinstance(request, MountRequest):
             self._call(lambda: core.mount(request))
+        elif isinstance(request, InstallRequest):
+            self._call(lambda: core.install(request.package))
         elif path == "/api/plan":
             self._call(lambda: core.plan(request))
         else:  # /api/handoff writes the files only: the command is copied and run by hand

@@ -196,3 +196,18 @@ dialog.ended ul.details li { margin: 3px 0; }
 @media (max-width: 700px) {
   main { padding: 16px 12px; }
 }
+/* Formats (T-081): per file system, what creates and mounts it here. */
+dialog.formats { width: min(640px, calc(100vw - 32px)); max-height: calc(100vh - 64px); overflow-y: auto; }
+dialog.formats section.family { border-top: 1px solid var(--line); margin-top: 12px; padding-top: 8px; }
+dialog.formats h4 { margin: 0 0 4px; font-size: 14px; }
+dialog.formats .label-row { margin: 8px 0 2px; font-size: 13px; }
+dialog.formats ul.tools { list-style: none; padding: 0; margin: 0; font-size: 13px; }
+dialog.formats ul.tools li { margin: 4px 0; }
+dialog.formats ul.tools li.works { color: var(--fat); }
+dialog.formats ul.tools li.absent, dialog.formats ul.tools li.fails { color: var(--warn); }
+dialog.formats ul.tools li .muted { color: var(--muted); font-size: 12px; overflow-wrap: anywhere; }
+dialog.formats .install { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: 4px; color: var(--text); }
+dialog.formats a { color: var(--accent); text-decoration: none; font-size: 13px; }
+dialog.formats a:hover { text-decoration: underline; }
+button.link { border: none; background: none; padding: 0; height: auto; color: var(--accent); font: inherit; cursor: pointer; }
+button.link:hover { text-decoration: underline; }

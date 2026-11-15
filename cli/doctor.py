@@ -1,12 +1,18 @@
 """Text rendering of the doctor report: one table, four columns (T-024 AC, D5), and the
-last trial mount — create and mount per format, side by side but apart (T-026, D34)."""
+last trial mount — create and mount per format, side by side but apart (T-026, D34). And
+the same report as JSON for the window's Formats dialog (T-081, K22)."""
 
 from __future__ import annotations
 
+import json
 import textwrap
+from collections.abc import Collection
 from itertools import zip_longest
+from typing import Any
 
-from core.model.doctor import ABSENT, FAILS, LISTED, NO, Capability, Creator, Driver, MountFact, Report, TrialNow
+from core.model.doctor import ABSENT, FAILS, LISTED, NO, Capability, Creator, Driver, MountFact, Report, Row, TrialNow
+from core.planner import formats as F
+from core.probe.doctor import TOOLS
 
 HEADERS = ("FORMAT", "CREATED BY", "DRIVER", "MOUNTED NOW")
 WIDTHS = (7, 46, 46, 30)
@@ -16,6 +22,88 @@ NO_TRIAL = (
     "No trial mount yet. diskmap doctor --trial makes and mounts every format on a disk image of its own "
     "(a few minutes; nothing else is touched) and keeps the result for plan previews."
 )
+
+
+JSON_FORMAT = 1
+# The families macOS creates and mounts itself; the dialog sums them up in one line.
+BUILTIN = ("apfs", "hfs", "exfat", "msdos")
+TITLES = {
+    "apfs": "APFS",
+    "hfs": "Mac OS Extended (HFS+)",
+    "exfat": "ExFAT",
+    "msdos": "MS-DOS (FAT)",
+    "ntfs": "NTFS",
+    "ext": "ext4",
+}
+TOOL_FORMATS = {"ntfs": F.NTFS, "ext": F.EXT4}  # the format a layout names for a family's own tool
+# What macOS does with a volume of a third-party family by itself, whatever is installed.
+BY_ITSELF = {"ntfs": "macOS itself mounts NTFS read-only.", "ext": "macOS itself does not mount ext4."}
+HOW_TO = "https://github.com/zapotylok/diskmap#ntfs-and-ext4"
+
+
+def to_json(report: Report, trial: TrialNow, installable: Collection[str]) -> str:
+    """REPORT and the last TRIAL, one entry per family, for the Formats dialog. A creator
+    that is absent names its package in `action` when INSTALLABLE holds it: the window
+    offers it to Terminal (ui/install.py); every other way to get one is a pointer only."""
+    first = sorted((r for r in report.rows if r.family in BUILTIN), key=lambda r: BUILTIN.index(r.family))
+    rest = [r for r in report.rows if r.family not in BUILTIN]
+    families = [_family(row, trial, installable) for row in (*first, *rest)]
+    t = trial.trial
+    doc = {
+        "format": JSON_FORMAT,
+        "families": families,
+        "unattributed": [_mount_json(m) for m in report.unattributed],
+        "trial": {"at": t.at if t is not None else None, "holds": trial.holds, "changed": list(trial.changed)},
+    }
+    return json.dumps(doc, indent=2, ensure_ascii=False) + "\n"
+
+
+def _family(row: Row, trial: TrialNow, installable: Collection[str]) -> dict[str, Any]:
+    spec = TOOLS.get(row.family)
+    package = spec.package if spec is not None else None
+    creators = [
+        {
+            "how": c.how,
+            "state": c.state,
+            "detail": c.detail,
+            "install": c.install,
+            "action": package if c.state == ABSENT and package in installable else None,
+        }
+        for c in row.creators
+    ]
+    formats = [c.how.removeprefix("diskutil ") for c in row.creators if c.how.startswith("diskutil ")]
+    if row.family in TOOL_FORMATS:
+        formats.append(TOOL_FORMATS[row.family])
+    tried = []
+    if trial.holds and trial.trial is not None:
+        for name in formats:
+            c = trial.trial.find(name)
+            if c is not None:
+                tried.append(
+                    {
+                        "format": c.format,
+                        "created": c.created,
+                        "mount": c.mount.mode if c.mount else None,
+                        "by": c.mount.by if c.mount else None,
+                    }
+                )
+    return {
+        "family": row.family,
+        "title": TITLES.get(row.family, row.family),
+        "builtin": row.family in BUILTIN,
+        "creators": creators,
+        "drivers": [
+            {"name": d.name, "loaded": d.loaded, "detail": d.detail, "install": d.install} for d in row.drivers
+        ],
+        "mounts": [_mount_json(m) for m in row.mounts],
+        "trial": tried,
+        "by_itself": BY_ITSELF.get(row.family),
+        "how_to": HOW_TO if row.family in BY_ITSELF else None,
+    }
+
+
+def _mount_json(m: MountFact) -> dict[str, Any]:
+    return {"driver": m.driver, "writable": m.writable, "count": m.count}
 
 
 def render(report: Report, trial: TrialNow | None = None) -> str:

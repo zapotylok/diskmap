@@ -6,6 +6,7 @@ Sources, all without root:
   pluginkit … com.apple.fskit.fsmodule, … io.macfuse.app.fsmodule.macfuse
                                       registered FSKit modules
   /sbin/mount                         who mounted what, rw or ro — the only fact about mounting
+  diskutil info -plist <device>       what file system a FUSE mount carries (its type names the driver)
   <tool> --version / -V               third-party formatters found on PATH or in known places
 
 Which driver could mount which file system is not in any of these: DRIVERS is a
@@ -17,6 +18,7 @@ pluginkit, so it is reported as not observable, not as absent.
 from __future__ import annotations
 
 import os
+import plistlib
 import re
 from collections import Counter
 from collections.abc import Mapping
@@ -25,7 +27,7 @@ from typing import Any
 
 from core.model.doctor import ABSENT, FAILS, LISTED, WORKS, Creator, Driver, Ext4Mounting, MountFact, Report, Row
 from core.model.filesystems import Registry
-from core.probe.command import run_read_only, run_version
+from core.probe.command import run_read_only, run_read_only_answer, run_version
 from core.probe.errors import UnfamiliarInput
 from core.probe.filesystems import parse_filesystems, read_filesystems
 from core.probe.mounts import parse_mounts as mount_lines
@@ -44,6 +46,11 @@ MOUNT_TYPES = {
     "ufsd_NTFS": "ntfs",
     "ufsd_ExtFS": "ext",
 }
+# Drivers that mount someone else's file system: their `mount` type says who mounted,
+# not what. What the device carries is diskutil's FilesystemType for it (ntfs-3g on
+# macFUSE: "ntfs", 2026-11-04) — never a guess from the driver, which serves sshfs as well.
+FUSE_TYPES = frozenset({"macfuse"})
+_DEVICE = re.compile(r"disk[0-9]+(s[0-9]+)*")
 KEXT, FSKIT, UNOBSERVABLE = "kext", "fskit", "unobservable"
 MACFUSE_FSKIT = "io.macfuse.app.fsmodule.macfuse"
 MACFUSE_BUNDLE = "/Library/Filesystems/macfuse.fs"
@@ -129,18 +136,21 @@ class RawDoctor:
     fskit: str
     macfuse_fskit: str
     mounts: str
+    fuse: Mapping[str, str]  # device of a FUSE mount → diskutil's FilesystemType ("" when none)
     tools: Mapping[str, ToolProbe]  # tool name → probe; missing name: not found
     present: frozenset[str]  # which DriverSpec.installed paths exist
 
 
 def read_raw(search_path: str, home: str) -> RawDoctor:
     """Read everything now. SEARCH_PATH is the caller's PATH, HOME expands "~"."""
+    mounts = _text(["/sbin/mount"])
     return RawDoctor(
         filesystems=read_filesystems(),
         kexts=_text(["/usr/bin/kmutil", "showloaded", "--list-only"]),
         fskit=_text(["/usr/bin/pluginkit", "-m", "-A", "-v", "-p", "com.apple.fskit.fsmodule"]),
         macfuse_fskit=_text(["/usr/bin/pluginkit", "-m", "-A", "-v", "-i", MACFUSE_FSKIT]),
-        mounts=_text(["/sbin/mount"]),
+        mounts=mounts,
+        fuse=read_fuse(mounts),
         tools=find_tools(search_path, home),
         present=frozenset(
             d.installed for ds in DRIVERS.values() for d in ds if d.installed and os.path.exists(d.installed)
@@ -153,7 +163,7 @@ def build(raw: RawDoctor) -> Report:
     registry = parse_filesystems(raw.filesystems)
     kexts = parse_kexts(raw.kexts)
     fskit = {**parse_fskit(raw.fskit), **parse_fskit(raw.macfuse_fskit)}
-    mounted, unattributed = parse_mounts(raw.mounts)
+    mounted, unattributed = parse_mounts(raw.mounts, raw.fuse)
 
     creators = _personality_creators(registry)
     for family, spec in TOOLS.items():
@@ -200,12 +210,40 @@ def parse_fskit(text: str) -> dict[str, str]:
     return out
 
 
-def parse_mounts(text: str) -> tuple[dict[str, tuple[MountFact, ...]], tuple[MountFact, ...]]:
-    """Mounted /dev volumes grouped by family, and those of no known family."""
+def read_fuse(mounts: str) -> dict[str, str]:
+    """FilesystemType of every /dev device a FUSE driver has mounted. A device that is
+    gone by the time diskutil is asked is left out: its mount stays unattributed."""
+    out = {}
+    for m in mount_lines(mounts):
+        if m.type not in FUSE_TYPES or not _DEVICE.fullmatch(m.device):
+            continue
+        rc, info, _ = run_read_only_answer(["/usr/sbin/diskutil", "info", "-plist", m.device])
+        if rc == 0:
+            out[m.device] = filesystem_type(plistlib.loads(info), m.device)
+    return out
+
+
+def filesystem_type(info: Any, device: str) -> str:
+    """diskutil's FilesystemType of DEVICE; "" when it names none."""
+    if not isinstance(info, dict):
+        raise UnfamiliarInput(f"diskutil info {device}: top level is not a dict")
+    kind = info.get("FilesystemType", "")
+    if not isinstance(kind, str):
+        raise UnfamiliarInput(f"diskutil info {device}: FilesystemType is not a string")
+    return kind
+
+
+def parse_mounts(
+    text: str, fuse: Mapping[str, str] | None = None
+) -> tuple[dict[str, tuple[MountFact, ...]], tuple[MountFact, ...]]:
+    """Mounted /dev volumes grouped by family, and those of no known family. A FUSE
+    mount goes by what diskutil says its device carries (read_fuse) and is shown as
+    mounted by the FUSE driver."""
     by_family: dict[str, Counter[tuple[str, bool]]] = {}
     other: Counter[tuple[str, bool]] = Counter()
     for m in mount_lines(text):
-        family = MOUNT_TYPES.get(m.type)
+        carried = (fuse or {}).get(m.device, "") if m.type in FUSE_TYPES else m.type
+        family = MOUNT_TYPES.get(carried)
         (by_family.setdefault(family, Counter()) if family else other)[(m.by, m.writable)] += 1
     facts = {f: _facts(c) for f, c in by_family.items()}
     return facts, _facts(other)

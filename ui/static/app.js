@@ -609,6 +609,125 @@ function showAbout() {
   document.getElementById("about").showModal();
 }
 document.getElementById("about-open").addEventListener("click", showAbout);
+
+// Formats (T-081, K22): per file system, what creates it and what mounts it on this Mac, as
+// `diskmap doctor` reads it. What is missing comes with a pointer; a package on the server's
+// fixed list also with "Install in Terminal…", which opens a script there that runs the
+// command only once Return is pressed: nothing is installed from here. When the script
+// ends, the dialog reads the doctor and the formats again.
+const MARKS = { works: "✓", listed: "·", fails: "!", absent: "✗" };
+
+function showFormats() {
+  const dlg = el("dialog", { class: "apply formats", "aria-labelledby": "formats-title" });
+  const body = el("div", {});
+  const poll = { timer: null };
+  dlg.addEventListener("close", () => { clearTimeout(poll.timer); dlg.remove(); });
+  const close = el("button", { type: "button", onclick: () => dlg.close() }, "Close");
+
+  const read = async (said = null) => {
+    body.replaceChildren(loading("Reading what this Mac has…"));
+    try {
+      const doc = await api("/api/doctor");
+      body.replaceChildren(...(said ? [said] : []), ...formatsView(doc, install));
+    } catch (err) {
+      body.replaceChildren(el("p", { class: "error" }, err.message));
+    }
+  };
+
+  // SLOT: where the button was; it says how the install goes from here on.
+  const install = async (pkg, slot) => {
+    slot.replaceChildren(loading("Opening Terminal…"));
+    let r;
+    try {
+      r = await api("/api/install", { package: pkg });
+    } catch (err) {
+      slot.replaceChildren(el("p", { class: "error" }, err.message));
+      return;
+    }
+    if (!r.opened) {
+      slot.replaceChildren(el("p", { class: "error" }, `${r.error}. Run this in a terminal instead, then reopen Formats.`),
+        commandLine(r.command_line));
+      return;
+    }
+    const stop = el("button", { type: "button", class: "icon", onclick: () => { clearTimeout(poll.timer); read(); } }, "Stop waiting");
+    slot.replaceChildren(el("p", { class: "note" }, "In Terminal: press Return to run ", el("code", {}, r.command_line), "."), stop);
+    const check = async () => {
+      let o;
+      try {
+        o = await api(`/api/install/result?id=${encodeURIComponent(r.id)}`);
+      } catch (err) {
+        slot.replaceChildren(el("p", { class: "error" }, err.message));
+        return;
+      }
+      if (!o.done) {
+        poll.timer = setTimeout(check, POLL_MS);
+        return;
+      }
+      if (o.ran && o.status === 0) {
+        try {
+          state.formats = await api("/api/formats");
+          if (state.editor) renderEditor();
+        } catch { /* the dialog's own read below says what is wrong */ }
+      }
+      const said = !o.ran ? el("p", { class: "note" }, `${pkg}: not run.`)
+        : o.status === 0 ? el("p", { class: "good" }, `${pkg} is installed.`)
+        : el("p", { class: "error" }, `brew ended with status ${o.status}: see the Terminal window.`);
+      read(said);
+    };
+    poll.timer = setTimeout(check, POLL_MS);
+  };
+
+  dlg.append(el("h3", { id: "formats-title" }, "Formats on this Mac"), body,
+    el("p", { class: "note" }, "diskmap doctor shows the same in a terminal."),
+    el("div", { class: "actions end" }, close));
+  document.body.append(dlg);
+  dlg.showModal();
+  read();
+}
+
+function formatsView(doc, install) {
+  const builtin = doc.families.filter((f) => f.builtin);
+  const out = [];
+  if (builtin.length) {
+    out.push(el("p", {}, `${builtin.map((f) => f.title).join(", ")}: created and mounted by macOS itself.`));
+  }
+  for (const f of doc.families.filter((x) => !x.builtin)) {
+    const create = f.creators.map((c) => {
+      const slot = el("div", { class: "install" });
+      if (c.action) {
+        slot.append(el("button", { type: "button", onclick: () => install(c.action, slot) }, "Install in Terminal…"),
+          el("code", {}, c.install));
+      } else if (c.install) {
+        slot.append(el("span", { class: "muted" }, `→ ${c.install}`));
+      }
+      return el("li", { class: c.state }, `${MARKS[c.state] || "?"} ${c.how} — ${c.state}`,
+        el("div", { class: "muted" }, c.detail), slot.childNodes.length ? slot : null);
+    });
+    const mount = [
+      f.by_itself ? el("li", {}, f.by_itself) : null,
+      ...f.drivers.map((d) => el("li", { class: d.loaded ? "works" : d.loaded === false ? "absent" : "listed" },
+        `${d.loaded ? "✓" : d.loaded === false ? "✗" : "?"} ${d.name}`, el("div", { class: "muted" }, d.detail),
+        d.install ? el("div", { class: "muted" }, `→ ${d.install}`) : null)),
+      f.mounts.length ? el("li", {}, `Mounted now: ${f.mounts.map(mountFact).join(", ")}`) : null,
+      ...f.trial.map((t) => el("li", {}, `Trial mount, ${t.format}: `
+        + (!t.created ? "not created" : !t.mount ? "not mounted" : t.mount === "no" ? "does not mount" : `${t.mount} by ${t.by}`))),
+    ];
+    out.push(el("section", { class: "family" },
+      el("h4", {}, f.title),
+      el("p", { class: "label-row" }, el("strong", {}, "Create")), el("ul", { class: "tools" }, create),
+      el("p", { class: "label-row" }, el("strong", {}, "Mount on this Mac")), el("ul", { class: "tools" }, mount),
+      f.how_to ? el("p", {}, el("a", { href: f.how_to, target: "_blank", rel: "noopener noreferrer" }, `How to set up ${f.title}…`)) : null));
+  }
+  if (doc.unattributed.length) {
+    out.push(el("p", { class: "note" }, `Also mounted now, by drivers diskmap maps to no format: ${doc.unattributed.map(mountFact).join(", ")}.`));
+  }
+  return out;
+}
+
+function mountFact(m) {
+  return `${m.driver} ${m.writable ? "read-write" : "read-only"} ×${m.count}`;
+}
+document.getElementById("formats-open").addEventListener("click", showFormats);
 document.getElementById("about-close").addEventListener("click", () => document.getElementById("about").close());
 document.getElementById("disk-pick").addEventListener("change", (ev) => {
   state.selected = ev.target.value;

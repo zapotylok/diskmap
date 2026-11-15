@@ -1,6 +1,6 @@
 """The formats a layout can name on this Mac, for a program (T-061, the web UI): what the
-editor offers, with why one is not planned and how this Mac mounted it in the last trial
-(T-026). Read-only.
+editor offers, with why one is not planned (and, for a missing formatter, what installs it) and
+how this Mac mounted it in the last trial (T-026). Read-only.
 
 The list is the trial's (core.planner.trial.trial_formats: diskutil's personalities that
 format, in its order, then ntfs and ext4) plus efi, which a layout names on request only
@@ -18,9 +18,11 @@ from core.model.filesystems import Registry
 from core.planner import formats as F
 from core.planner.common import Tools, label_rule
 from core.planner.trial import trial_formats
+from core.probe.doctor import TOOLS
 
 FORMAT = 1
 NAMES = {F.NTFS: "NTFS (mkntfs)", F.EXT4: "ext4 (mke2fs)", F.EFI: "EFI system partition (FAT32)"}
+FORMATTER = {F.NTFS: TOOLS["ntfs"], F.EXT4: TOOLS["ext"]}  # a format diskmap makes with a tool it does not ship
 
 
 def formats_json(registry: Registry, tools: Tools, trial: TrialNow) -> str:
@@ -28,6 +30,8 @@ def formats_json(registry: Registry, tools: Tools, trial: TrialNow) -> str:
     out = []
     for name, why in listed:
         entry: dict[str, Any] = {"format": name, "name": NAMES.get(name), "plannable": why is None, "why": why}
+        if why is not None and name in FORMATTER:
+            entry["install"] = FORMATTER[name].install
         if why is None:
             try:
                 f = F.resolve_format(name, registry)

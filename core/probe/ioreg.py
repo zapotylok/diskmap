@@ -72,7 +72,10 @@ _DRIVER = _IOSERVICE | {
 
 # TierType marks an APFS physical store; on a whole disk when the store is the whole disk
 # (macOS 15 cryptex images, K20) — as on a GPT partition below.
-WHOLE_KEYS = _MEDIA | {"IOMediaIcon", "TierType"}
+# IOPolledInterfaceStack: the hibernation I/O stack the kernel attaches to the disk that holds
+# /var/vm/sleepimage, once the Mac has prepared to hibernate (disk0, 2026-11-15, D57). Its value
+# is the string "IOPolledFilePollers is not serializable"; not read.
+WHOLE_KEYS = _MEDIA | {"IOMediaIcon", "TierType", "IOPolledInterfaceStack"}
 APFS_CONTAINER_SCHEME = "AppleAPFSContainerScheme"
 # kIOMediaLiveKey (IOPartitionScheme.h): set only when the scheme re-read the table while
 # a partition of the disk was open (D24). Seen on GPT and MBR.
