@@ -96,9 +96,10 @@ diskmap install-app
 ```
 
 It copies the window into `/Applications`, or `~/Applications` if you cannot write there
-(`--to FOLDER` for another place). The copy runs the `diskmap` Homebrew installed, so after
-`brew upgrade diskmap` it runs the new version; run `diskmap install-app` again when you
-want the newest window itself.
+(`--to FOLDER` for another place). The copy runs the `diskmap` Homebrew installed, and
+after `brew upgrade diskmap` it replaces itself with the new window the next time you open
+it, so there is always one diskmap in Applications. A copy made by diskmap 2026.1115 or
+earlier does not do that yet: run `diskmap install-app` once more.
 
 **NTFS and ext4** need tools diskmap does not install, to create them and to use them on a
 Mac: see [NTFS and ext4](#ntfs-and-ext4).
