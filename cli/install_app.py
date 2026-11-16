@@ -3,7 +3,8 @@
 Homebrew builds the window into the formula's own folder and may not write anywhere else;
 this puts a copy where Launchpad and Spotlight find it — /Applications when the user may
 write there, else ~/Applications, or the folder --to names. The copy runs the installed
-`diskmap` (DiskmapCommand, D54), so `brew upgrade` needs this again only for a new window.
+`diskmap` (DiskmapCommand, D54); after `brew upgrade` it is brought up to the new window the
+next time it starts `diskmap ui` (`refresh_started_by`, D58), so install-app is run once.
 
 Not a disk operation: nothing here touches a partition map. It copies with `ditto`, the
 way macOS copies bundles, checks the copy's signature, and replaces only a diskmap.app of
@@ -16,11 +17,13 @@ import os
 import plistlib
 import shutil
 import subprocess
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from pathlib import Path
 
 NAME = "diskmap.app"
 BUNDLE_ID = "io.github.zapotylok.diskmap"
+# Set by diskmap.app for the `diskmap ui` it starts: the bundle it runs from (app/diskmap.swift).
+APP_ENV = "DISKMAP_APP"
 DITTO = "/usr/bin/ditto"
 CODESIGN = "/usr/bin/codesign"
 # Where `python -m cli` runs from (libexec in the formula, the project folder in a checkout).
@@ -32,12 +35,15 @@ class InstallError(Exception):
 
 
 def find_app(code: Path = CODE) -> Path:
-    """The window that belongs to this diskmap: the formula's, next to libexec; else a
-    checkout's own build (app/build.sh)."""
-    for app in (code.parent / NAME, code / "app" / "build" / NAME):
-        if bundle_id(app) == BUNDLE_ID:
-            return app
-    raise InstallError(f"no {NAME} next to this diskmap: install it with Homebrew, or build it with app/build.sh")
+    """The window that belongs to this diskmap: the formula's, next to libexec. A checkout's
+    own build is "diskmap dev", another bundle id: it runs its own code, never the installed
+    diskmap, and is not copied into Applications (D58)."""
+    app = code.parent / NAME
+    if bundle_id(app) == BUNDLE_ID:
+        return app
+    raise InstallError(
+        f"no {NAME} next to this diskmap: install it with Homebrew (brew install zapotylok/diskmap/diskmap)"
+    )
 
 
 def destination(home: str, system: str = "/Applications") -> Path:
@@ -48,12 +54,49 @@ def destination(home: str, system: str = "/Applications") -> Path:
 
 
 def bundle_id(app: Path) -> str | None:
+    return _info_string(app, "CFBundleIdentifier")
+
+
+def _info_string(app: Path, key: str) -> str | None:
     try:
         with open(app / "Contents" / "Info.plist", "rb") as f:
-            value = plistlib.load(f).get("CFBundleIdentifier")
+            info = plistlib.load(f)
     except (OSError, plistlib.InvalidFileException):
         return None
+    value = info.get(key) if isinstance(info, dict) else None
     return value if isinstance(value, str) else None
+
+
+def refresh(copy: Path, app: Path, check: Callable[[Path], None] | None = None) -> Path | None:
+    """Bring COPY — the diskmap.app that started this diskmap — up to the formula's window APP
+    (D58). Only a copy of this very installation: named diskmap.app, diskmap's bundle id, running
+    the same command as APP, of another version. None: nothing to do."""
+    if copy.name != NAME or copy.resolve() == app.resolve():
+        return None
+    if bundle_id(copy) != BUNDLE_ID or bundle_id(app) != BUNDLE_ID:
+        return None
+    command = _info_string(app, "DiskmapCommand")
+    if command is None or _info_string(copy, "DiskmapCommand") != command:
+        return None
+    if _info_string(copy, "CFBundleShortVersionString") == _info_string(app, "CFBundleShortVersionString"):
+        return None
+    return install(app, copy.parent, check or verify)
+
+
+def refresh_started_by(environ: Mapping[str, str], finder: Callable[[], Path] = find_app) -> str | None:
+    """For `diskmap ui`: refresh the copy that started it, if any (APP_ENV). One line saying what
+    happened, or None when nothing did. Never raises: the window opens either way."""
+    started_by = environ.get(APP_ENV)
+    if not started_by:
+        return None
+    try:
+        app = finder()
+        target = refresh(Path(started_by), app)
+    except (InstallError, OSError) as e:
+        return f"ui: {started_by} not brought up to date: {e}"
+    if target is None:
+        return None
+    return f"ui: {target} brought up to {_info_string(target, 'CFBundleShortVersionString')}; the next start runs it"
 
 
 def verify(app: Path) -> None:

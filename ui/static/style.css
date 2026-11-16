@@ -169,7 +169,8 @@ dialog.apply::backdrop, dialog.about::backdrop { background: rgba(0, 0, 0, .45);
 dialog.apply h3, dialog.about h3 { margin: 0 0 8px; font-size: 16px; }
 dialog.apply ol.steps { padding-left: 20px; margin: 8px 0; }
 dialog.apply ol.steps li { margin: 4px 0; }
-header #about-open { margin-left: 0; }
+/* Refresh rereads the disks: it stays with the disk picker; Formats… and About go right. */
+header #refresh, header #about-open { margin-left: 0; }
 dialog.about { width: min(420px, calc(100vw - 32px)); text-align: center; }
 dialog.about img { display: block; margin: 4px auto 6px; }
 dialog.about h3 { font-size: 18px; margin-bottom: 2px; }

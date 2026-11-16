@@ -21,6 +21,7 @@ import WebKit
 //   so a copy of the app outside the formula runs whatever version is installed.
 let pythonKey = "DiskmapPython"
 let commandKey = "DiskmapCommand"
+let appKey = "DISKMAP_APP"  // cli/install_app.py APP_ENV
 let linkPrefix = "diskmap ui: "
 let startTimeout: TimeInterval = 15
 
@@ -63,6 +64,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, 
             p.executableURL = URL(fileURLWithPath: command)
             p.arguments = ui
             p.currentDirectoryURL = FileManager.default.homeDirectoryForCurrentUser
+            // Which bundle started it: a copy in Applications older than the formula's window is
+            // brought up to it (D58). A variable, not an argument: an older diskmap ignores it.
+            var env = ProcessInfo.processInfo.environment
+            env[appKey] = Bundle.main.bundlePath
+            p.environment = env
         } else {
             guard let python = Bundle.main.object(forInfoDictionaryKey: pythonKey) as? String,
                 FileManager.default.isExecutableFile(atPath: python)

@@ -294,6 +294,7 @@ def _ui(port: int, open_browser: bool, exit_on_eof: bool = False) -> int:
     is `sudo diskmap apply` in a terminal (K14). EXIT_ON_EOF: also until stdin closes —
     diskmap.app (A′) holds the server's stdin, so the server ends with the app, however
     the app ends, and is never left serving with no window."""
+    from cli.install_app import refresh_started_by
     from ui.server import core_of, serve
 
     if os.geteuid() == 0:
@@ -301,6 +302,10 @@ def _ui(port: int, open_browser: bool, exit_on_eof: bool = False) -> int:
             "ui: run it as yourself, not as root — it only reads; writing is sudo diskmap apply (K14)", file=sys.stderr
         )
         return 1
+    # Started by a copy of the window in Applications: bring it up to the installed one (D58).
+    note = refresh_started_by(os.environ)
+    if note:
+        print(note, file=sys.stderr)
     try:
         server = serve(core_of(os.environ.get("PATH", ""), str(Path.home())), port)
     except OSError as e:

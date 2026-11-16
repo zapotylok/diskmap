@@ -7,10 +7,13 @@
 #   PATH; it does not carry an interpreter;
 # - --command DISKMAP (D54): the bundle carries no code and runs that `diskmap` command —
 #   the Homebrew formula's, by its opt/ path, so a copy of the app runs whatever is installed.
-# Signed ad hoc either way: no Developer ID, not notarized. The icon is the compiled one in
-# app/icon/ (app/icon.sh): actool is not in the Command Line Tools Homebrew builds with.
+# A build for this Mac is a developer's: its own bundle id and name, "diskmap dev", in a
+# .noindex folder Spotlight skips — never taken for the installed window, whose code it does
+# not run (D58). Signed ad hoc either way: no Developer ID, not notarized. The icon is the
+# compiled one in app/icon/ (app/icon.sh): actool is not in the Command Line Tools Homebrew
+# builds with.
 #
-#   app/build.sh                               → app/build/diskmap.app
+#   app/build.sh                               → app/build.noindex/diskmap.app
 #   PYTHON=/path/python3 app/build.sh
 #   OUT=/prefix app/build.sh --command /opt/homebrew/opt/diskmap/bin/diskmap
 #
@@ -18,7 +21,7 @@
 
 set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-OUT="${OUT:-$ROOT/app/build}"  # test.sh builds into a temporary folder, the formula into its prefix
+OUT="${OUT:-$ROOT/app/build.noindex}"  # test.sh builds into a temporary folder, the formula into its prefix
 APP="$OUT/diskmap.app"
 MIN_MACOS=15.0  # K19: runs from Sequoia on; tested on core.version.TESTED_MACOS only
 
@@ -78,6 +81,9 @@ if command:
     info["DiskmapCommand"] = command
 else:
     info["DiskmapPython"] = python
+    # A developer's build runs its own code: another app to macOS than the installed window (D58).
+    info["CFBundleIdentifier"] += ".dev"
+    info["CFBundleName"] = info["CFBundleDisplayName"] = "diskmap dev"
 with open(out, "wb") as f:
     plistlib.dump(info, f)
 EOF
