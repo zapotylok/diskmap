@@ -291,16 +291,18 @@ def _driver(d: DriverSpec, kexts: Mapping[str, str], fskit: Mapping[str, str], p
     installed = d.installed is not None and d.installed in present
     where = f" (installed: {d.installed})" if installed else ""
     install = None if installed else d.install
+    # Not active: whether it is there at all is known only for a spec that names its bundle.
+    there = installed if d.installed is not None else None
     if d.kind == KEXT:
         hits = sorted(v for k, v in kexts.items() if k == d.ident or k.startswith(d.ident + "."))
         if hits:
-            return Driver(d.name, True, f"loaded {', '.join(hits)}")
-        return Driver(d.name, False, f"not loaded{where}", install=install)
+            return Driver(d.name, True, f"loaded {', '.join(hits)}", installed=True)
+        return Driver(d.name, False, f"not loaded{where}", install=install, installed=there)
     election = fskit.get(d.ident)
     if election is None:
-        return Driver(d.name, False, f"not registered{where}", install=install)
+        return Driver(d.name, False, f"not registered{where}", install=install, installed=there)
     state = {"+": "enabled", "-": "disabled", " ": "default"}.get(election, f"election {election!r}")
-    return Driver(d.name, election != "-", f"registered, {state}")
+    return Driver(d.name, election != "-", f"registered, {state}", installed=True)
 
 
 def working_tool(name: str, search_path: str, home: str) -> str | None:

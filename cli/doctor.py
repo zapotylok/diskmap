@@ -10,7 +10,22 @@ from collections.abc import Collection
 from itertools import zip_longest
 from typing import Any
 
-from core.model.doctor import ABSENT, FAILS, LISTED, NO, Capability, Creator, Driver, MountFact, Report, Row, TrialNow
+from core.model.doctor import (
+    ABSENT,
+    FAILS,
+    LISTED,
+    NO,
+    RO,
+    RW,
+    WORKS,
+    Capability,
+    Creator,
+    Driver,
+    MountFact,
+    Report,
+    Row,
+    TrialNow,
+)
 from core.planner import formats as F
 from core.probe.doctor import TOOLS
 
@@ -39,6 +54,12 @@ TOOL_FORMATS = {"ntfs": F.NTFS, "ext": F.EXT4}  # the format a layout names for 
 # What macOS does with a volume of a third-party family by itself, whatever is installed.
 BY_ITSELF = {"ntfs": "macOS itself mounts NTFS read-only.", "ext": "macOS itself does not mount ext4."}
 HOW_TO = "https://github.com/zapotylok/diskmap#ntfs-and-ext4"
+# The dialog's tab names: short enough for a column beside the marks.
+SHORT = {"hfs": "HFS+", "msdos": "FAT"}
+# Can this Mac create, read and write a family (T-083): YES as observed or as macOS does it
+# itself, MAYBE where only a driver or a listing points that way and nothing tried it, NO.
+YES, MAYBE = "yes", "maybe"
+TRY = "diskmap doctor --trial tries it"
 
 
 def to_json(report: Report, trial: TrialNow, installable: Collection[str]) -> str:
@@ -90,7 +111,9 @@ def _family(row: Row, trial: TrialNow, installable: Collection[str]) -> dict[str
     return {
         "family": row.family,
         "title": TITLES.get(row.family, row.family),
+        "short": SHORT.get(row.family, TITLES.get(row.family, row.family)),
         "builtin": row.family in BUILTIN,
+        "can": can(row, tried),
         "creators": creators,
         "drivers": [
             {"name": d.name, "loaded": d.loaded, "detail": d.detail, "install": d.install} for d in row.drivers
@@ -100,6 +123,79 @@ def _family(row: Row, trial: TrialNow, installable: Collection[str]) -> dict[str
         "by_itself": BY_ITSELF.get(row.family),
         "how_to": HOW_TO if row.family in BY_ITSELF else None,
     }
+
+
+def can(row: Row, tried: list[dict[str, Any]]) -> dict[str, dict[str, str]]:
+    """Create, read and write for ROW's family, each a state (YES / MAYBE / NO) and why, from
+    the same report: a volume mounted now, then the last trial when it holds (TRIED), then
+    what macOS and the loaded drivers do. Nothing here is guessed past what a driver is for:
+    a driver loaded but never tried is MAYBE, and says what would settle it."""
+    builtin = row.family in BUILTIN
+
+    def st(state: str, why: str) -> dict[str, str]:
+        return {"state": state, "why": why}
+
+    # Create. A trial made it, or not; else the formatters as doctor found them.
+    made = [t for t in tried if t["created"] is not None]
+    works = [c for c in row.creators if c.state == WORKS]
+    listed = [c for c in row.creators if c.state == LISTED]
+    fails = [c for c in row.creators if c.state == FAILS]
+    if any(t["created"] for t in made):
+        create = st(YES, "made on the trial disk image")
+    elif made:
+        create = st(NO, "the trial could not make it")
+    elif works:
+        create = st(YES, f"{works[0].how} works")
+    elif listed and builtin:
+        create = st(YES, "diskutil formats it")
+    elif listed:
+        create = st(MAYBE, f"diskutil lists {listed[0].how.removeprefix('diskutil ')}; {TRY}")
+    elif fails:
+        create = st(NO, f"{fails[0].how} fails")
+    else:
+        create = st(NO, "nothing here creates it")
+
+    # Mounting. A volume mounted now is a fact; so is the trial's mount, for mounting by itself.
+    rw_now = [m for m in row.mounts if m.writable]
+    ro_now = [m for m in row.mounts if not m.writable]
+    modes = [t for t in tried if t["mount"] is not None]
+    best = next((t for mode in (RW, RO, NO) for t in modes if t["mount"] == mode), None)
+    loaded = [d for d in row.drivers if d.loaded and not d.name.startswith("Apple")]
+    fuse = next((d for d in row.drivers if d.name.startswith("macFUSE") and d.installed), None)
+    ntfs_3g = fuse is not None and any(c.how == "mkntfs" and c.state == WORKS for c in row.creators)
+
+    if row.mounts:
+        read = st(YES, f"mounted now by {row.mounts[0].driver}")
+    elif best is not None and best["mount"] in (RW, RO):
+        read = st(YES, f"the trial mounted it by {best['by']}")
+    elif best is not None:
+        read = st(NO, "the trial could not mount it")
+    elif builtin:
+        read = st(YES, "macOS mounts it itself")
+    elif row.family == "ntfs":
+        read = st(YES, "macOS itself mounts NTFS read-only")
+    elif loaded:
+        read = st(MAYBE, f"{loaded[0].name} is loaded; {TRY}")
+    else:
+        read = st(NO, BY_ITSELF.get(row.family, "no driver here mounts it").rstrip("."))
+
+    if rw_now:
+        write = st(YES, f"mounted read-write now by {rw_now[0].driver}")
+    elif best is not None and best["mount"] == RW:
+        write = st(YES, f"the trial mounted it read-write by {best['by']}")
+    elif ntfs_3g:
+        write = st(MAYBE, "ntfs-3g on macFUSE, mounted by hand with sudo")
+    elif best is not None:
+        write = st(NO, f"the trial mounted it read-only by {best['by']}" if best["mount"] == RO else read["why"])
+    elif builtin:
+        write = st(YES, "macOS mounts it read-write itself")
+    elif loaded and not ro_now:
+        write = st(MAYBE, f"{loaded[0].name} is loaded; {TRY}")
+    elif read["state"] == YES:
+        write = st(NO, f"mounts read-only by {ro_now[0].driver}" if ro_now else "no driver here writes it")
+    else:
+        write = st(NO, read["why"])
+    return {"create": create, "read": read, "write": write}
 
 
 def _mount_json(m: MountFact) -> dict[str, Any]:

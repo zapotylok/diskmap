@@ -176,10 +176,14 @@ def _fs(v: VolumeInfo, snaps: tuple[str, ...], notes: list[str]) -> str:
 
 
 def _mount(v: VolumeInfo, snaps: tuple[str, ...]) -> str:
+    # Both can hold: while an update is staged, macOS mounts the System volume itself at
+    # /System/Volumes/Update/mnt1, and `/` is still its snapshot.
+    snap = f"its snapshot at {', '.join(snaps)}" if snaps else None
     if v.mount_point is not None:
-        return f"at {v.mount_point}" + ("" if v.writable else ", read-only")
-    if snaps:
-        return f"not mounted; its snapshot at {', '.join(snaps)}"
+        own = f"at {v.mount_point}" + ("" if v.writable else ", read-only")
+        return own if snap is None else f"{own}; {snap}"
+    if snap is not None:
+        return f"not mounted; {snap}"
     return "not mounted"
 
 

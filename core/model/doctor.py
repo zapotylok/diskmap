@@ -39,6 +39,7 @@ class Driver:
     loaded: bool | None  # None: cannot be observed read-only
     detail: str
     install: str | None = None
+    installed: bool | None = None  # loaded, or its bundle is present; None: cannot be told when not loaded
 
 
 @dataclass(frozen=True)

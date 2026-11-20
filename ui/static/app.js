@@ -615,12 +615,18 @@ document.getElementById("about-open").addEventListener("click", showAbout);
 // fixed list also with "Install in Terminal…", which opens a script there that runs the
 // command only once Return is pressed: nothing is installed from here. When the script
 // ends, the dialog reads the doctor and the formats again.
+// T-083: one tab per file system, with create / read / write beside its name (the server
+// says which and why); the details of the chosen one scroll on their own, Close stays put.
 const MARKS = { works: "✓", listed: "·", fails: "!", absent: "✗" };
+const CAN = { yes: "✓", maybe: "?", no: "✗" };
+const CAN_SAYS = { yes: "yes", maybe: "maybe", no: "no" };
+const ABILITIES = ["create", "read", "write"];
 
 function showFormats() {
   const dlg = el("dialog", { class: "apply formats", "aria-labelledby": "formats-title" });
-  const body = el("div", {});
+  const body = el("div", { class: "formats-body" });
   const poll = { timer: null };
+  const pick = { family: null };  // the tab shown; kept across a reread
   dlg.addEventListener("close", () => { clearTimeout(poll.timer); dlg.remove(); });
   const close = el("button", { type: "button", onclick: () => dlg.close() }, "Close");
 
@@ -628,7 +634,7 @@ function showFormats() {
     body.replaceChildren(loading("Reading what this Mac has…"));
     try {
       const doc = await api("/api/doctor");
-      body.replaceChildren(...(said ? [said] : []), ...formatsView(doc, install));
+      body.replaceChildren(...(said ? [said] : []), formatsView(doc, install, pick));
     } catch (err) {
       body.replaceChildren(el("p", { class: "error" }, err.message));
     }
@@ -678,50 +684,96 @@ function showFormats() {
   };
 
   dlg.append(el("h3", { id: "formats-title" }, "Formats on this Mac"), body,
-    el("p", { class: "note" }, "diskmap doctor shows the same in a terminal."),
-    el("div", { class: "actions end" }, close));
+    el("div", { class: "formats-foot" },
+      el("p", { class: "note" }, "diskmap doctor shows the same in a terminal."), close));
   document.body.append(dlg);
   dlg.showModal();
   read();
 }
 
-function formatsView(doc, install) {
-  const builtin = doc.families.filter((f) => f.builtin);
-  const out = [];
-  if (builtin.length) {
-    out.push(el("p", {}, `${builtin.map((f) => f.title).join(", ")}: created and mounted by macOS itself.`));
+// The tabs: a vertical list, each with its marks; the panel beside it shows the chosen one.
+// PICK.family: the tab to show — by default the first one this Mac cannot fully handle.
+function formatsView(doc, install, pick) {
+  const fams = doc.families;
+  if (!fams.some((f) => f.family === pick.family)) {
+    const short = fams.find((f) => ABILITIES.some((a) => f.can[a].state !== "yes"));
+    pick.family = (short || fams[0] || {}).family || null;
   }
-  for (const f of doc.families.filter((x) => !x.builtin)) {
-    const create = f.creators.map((c) => {
-      const slot = el("div", { class: "install" });
-      if (c.action) {
-        slot.append(el("button", { type: "button", onclick: () => install(c.action, slot) }, "Install in Terminal…"),
-          el("code", {}, c.install));
-      } else if (c.install) {
-        slot.append(el("span", { class: "muted" }, `→ ${c.install}`));
-      }
-      return el("li", { class: c.state }, `${MARKS[c.state] || "?"} ${c.how} — ${c.state}`,
-        el("div", { class: "muted" }, c.detail), slot.childNodes.length ? slot : null);
-    });
-    const mount = [
-      f.by_itself ? el("li", {}, f.by_itself) : null,
-      ...f.drivers.map((d) => el("li", { class: d.loaded ? "works" : d.loaded === false ? "absent" : "listed" },
-        `${d.loaded ? "✓" : d.loaded === false ? "✗" : "?"} ${d.name}`, el("div", { class: "muted" }, d.detail),
-        d.install ? el("div", { class: "muted" }, `→ ${d.install}`) : null)),
-      f.mounts.length ? el("li", {}, `Mounted now: ${f.mounts.map(mountFact).join(", ")}`) : null,
-      ...f.trial.map((t) => el("li", {}, `Trial mount, ${t.format}: `
-        + (!t.created ? "not created" : !t.mount ? "not mounted" : t.mount === "no" ? "does not mount" : `${t.mount} by ${t.by}`))),
-    ];
-    out.push(el("section", { class: "family" },
-      el("h4", {}, f.title),
-      el("p", { class: "label-row" }, el("strong", {}, "Create")), el("ul", { class: "tools" }, create),
-      el("p", { class: "label-row" }, el("strong", {}, "Mount on this Mac")), el("ul", { class: "tools" }, mount),
-      f.how_to ? el("p", {}, el("a", { href: f.how_to, target: "_blank", rel: "noopener noreferrer" }, `How to set up ${f.title}…`)) : null));
-  }
-  if (doc.unattributed.length) {
-    out.push(el("p", { class: "note" }, `Also mounted now, by drivers diskmap maps to no format: ${doc.unattributed.map(mountFact).join(", ")}.`));
-  }
-  return out;
+  const panel = el("div", { class: "formats-panel", id: "formats-panel", role: "tabpanel", tabindex: "0" });
+  const tabs = el("div", { class: "formats-tabs", role: "tablist", "aria-orientation": "vertical", "aria-label": "File systems" },
+    el("div", { class: "formats-head", "aria-hidden": "true" }, el("span", {}, ""), ...ABILITIES.map((a) => el("span", {}, a))));
+  const buttons = [];
+  const show = (fam) => {
+    pick.family = fam;
+    const f = fams.find((x) => x.family === fam);
+    for (const b of buttons) {
+      const on = b.dataset.family === fam;
+      b.setAttribute("aria-selected", String(on));
+      b.tabIndex = on ? 0 : -1;
+      if (on) panel.setAttribute("aria-labelledby", b.id);
+    }
+    panel.replaceChildren(...familyView(f, install));
+    panel.scrollTop = 0;
+  };
+  fams.forEach((f, i) => {
+    const b = el("button", {
+      type: "button", role: "tab", id: `formats-tab-${f.family}`, "data-family": f.family, "aria-controls": "formats-panel",
+      "aria-label": `${f.title}: ${ABILITIES.map((a) => `${a} ${CAN_SAYS[f.can[a].state]}`).join(", ")}`,
+      onclick: () => show(f.family),
+      onkeydown: (ev) => {
+        const step = { ArrowDown: 1, ArrowUp: -1 }[ev.key];
+        const to = step ? (i + step + fams.length) % fams.length : ev.key === "Home" ? 0 : ev.key === "End" ? fams.length - 1 : null;
+        if (to === null) return;
+        ev.preventDefault();
+        show(fams[to].family);
+        buttons[to].focus();
+      },
+    }, el("span", { class: "name" }, f.short),
+      ...ABILITIES.map((a) => el("span", { class: `can ${f.can[a].state}`, title: `${a}: ${f.can[a].why}` }, CAN[f.can[a].state])));
+    buttons.push(b);
+    tabs.append(b);
+  });
+  const out = el("div", { class: "formats-grid" }, tabs, panel);
+  if (pick.family) show(pick.family);
+  const extra = doc.unattributed.length
+    ? el("p", { class: "note" }, `Also mounted now, by drivers diskmap maps to no format: ${doc.unattributed.map(mountFact).join(", ")}.`)
+    : null;
+  return extra ? el("div", { class: "formats-wrap" }, out, extra) : out;
+}
+
+function familyView(f, install) {
+  const create = f.creators.map((c) => {
+    const slot = el("div", { class: "install" });
+    if (c.action) {
+      slot.append(el("button", { type: "button", onclick: () => install(c.action, slot) }, "Install in Terminal…"),
+        el("code", {}, c.install));
+    } else if (c.install) {
+      slot.append(el("span", { class: "muted" }, `→ ${c.install}`));
+    }
+    return el("li", { class: c.state }, `${MARKS[c.state] || "?"} ${c.how} — ${c.state}`,
+      el("div", { class: "muted" }, c.detail), slot.childNodes.length ? slot : null);
+  });
+  const mount = [
+    f.by_itself ? el("li", {}, f.by_itself) : null,
+    ...f.drivers.map((d) => el("li", { class: d.loaded ? "works" : d.loaded === false ? "absent" : "listed" },
+      `${d.loaded ? "✓" : d.loaded === false ? "✗" : "?"} ${d.name}`, el("div", { class: "muted" }, d.detail),
+      d.install ? el("div", { class: "muted" }, `→ ${d.install}`) : null)),
+    f.mounts.length ? el("li", {}, `Mounted now: ${f.mounts.map(mountFact).join(", ")}`) : null,
+    ...f.trial.map((t) => el("li", {}, `Trial mount, ${t.format}: `
+      + (!t.created ? "not created" : !t.mount ? "not mounted" : t.mount === "no" ? "does not mount" : `${t.mount} by ${t.by}`))),
+  ];
+  const summary = el("dl", { class: "can-says" }, ...ABILITIES.flatMap((a) => [
+    el("dt", {}, a[0].toUpperCase() + a.slice(1)),
+    el("dd", { class: `can ${f.can[a].state}` }, `${CAN[f.can[a].state]} ${CAN_SAYS[f.can[a].state]} — ${f.can[a].why}`),
+  ]));
+  return [
+    el("h4", {}, f.title),
+    f.builtin ? el("p", { class: "muted" }, "macOS creates and mounts it itself.") : null,
+    summary,
+    el("p", { class: "label-row" }, el("strong", {}, "Create")), el("ul", { class: "tools" }, create),
+    el("p", { class: "label-row" }, el("strong", {}, "Mount on this Mac")), el("ul", { class: "tools" }, mount),
+    f.how_to ? el("p", {}, el("a", { href: f.how_to, target: "_blank", rel: "noopener noreferrer" }, `How to set up ${f.title}…`)) : null,
+  ].filter(Boolean);
 }
 
 function mountFact(m) {
